@@ -1,7 +1,7 @@
-function [ connMat, connMat_sep, R_e, R_i ] = genConnections(numNeur, dR, sig, p, strength)
-%[ connMat, connMat_sep, R_e, R_i ] = genConnections(numNeur, sig, p)
+function [ connMat, connMat_sep, R_e, R_i ] = genConnPING(numNeur, dR, sig, p, strength)
+%[ connMat, connMat_sep, R_e, R_i ] = genConnPING(numNeur, dR, sig, p, strength)
 %   assumes 4:1 ratio of excitatory and inhibitory neurons
-% 
+%
 %%%%INPUT%
 %   numNeur:  the number of excitatory neurons along an edge of a square
 %   lattice.
@@ -11,7 +11,7 @@ function [ connMat, connMat_sep, R_e, R_i ] = genConnections(numNeur, dR, sig, p
 %   p:        connection probability; fraction of possible sending neurons
 %   that project to each target neuron (contains 4 values: EE, II, IE, EI)
 %   strength: total conductance for each target neuron (contains 4 values: EE, II, IE, EI)
-% 
+%
 %%%%OUTPUT%
 %   connMat:  full connection matrix containing synaptic weigths
 %   connMat_sep:  cell array containing the four sub matrices separatesly
@@ -115,7 +115,7 @@ end
 
 function [connMat]=sampleConn(pdfCon,pCon)
 
-[numReceive,numSend]=size(pdfCon);  
+[numReceive,numSend]=size(pdfCon);
 cpdf=cumsum(pdfCon,2);
 
 %number of incoming connections per neuron (actually number of samples, therefore maximum)
