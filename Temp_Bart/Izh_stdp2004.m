@@ -13,10 +13,11 @@ c=-65;
 d=2;
 parI=[a; b; c; d];
 
-tLim=[0 4e3];
-dt=.25;
+tLim=[0 2e3];
+dt=.5;
 
-numNeur=50;
+
+numNeur=20;
 dR=50e-6;
 % E->E, E->I, I->E, I->I
 sig=[2 3 10 3]*dR;
@@ -27,12 +28,12 @@ strength=[.2 1 .8 1];
 numE=size(R_e,1);
 numI=size(R_i,1);
 S=connMat;
-% S(1:numE,1:numE)=mean(mean(S(1:numE,1:numE)));
+S(1:numE,1:numE)=double(connMat_sep{1}>0)*.01;
 
 % S=S_out;
 
 I=randn(numNeur,numNeur);
-sig=5*dR;
+sig=4*dR;
 Rdum=min(R_e):dR:max(R_e);
 Rdum=Rdum-mean(Rdum);
 filtKern=exp(-Rdum.^2/(2*sig^2));
@@ -80,6 +81,9 @@ pars(2,numE+1:end)=pars(2,numE+1:end)+rand(1,numI)*.03;
 
 
 %%
+
+
+
 cfg=[];
 cfg.a=pars(1,:);
 cfg.b=pars(2,:);
@@ -88,17 +92,17 @@ cfg.d=pars(4,:);
 cfg.S=S;
 cfg.EI=EI;
 cfg.STDP=1;
-cfg.output='/home/mrphys/bargip/GIT/Dynamic_Coding/Temp_Bart/test2_STDP.mat';
-cfg.saveInterval=2e3;
-cfg.verbose=0;
+% cfg.output='/home/mrphys/bargip/GIT/Dynamic_Coding/Temp_Bart/test2_STDP_2004.mat';
+cfg.saveInterval=inf;
+cfg.verbose=1;
 % 
 % 
-% tic
-% [V,t,output,spikes]=Izh_network(V_init,tLim,dt,I,noise,cfg);
-% toc
+tic
+[V,t,output,spikes]=Izh_network_STDP_izh2004(V_init,tLim,dt,I,noise,cfg);
+toc
 
-cd ~/GIT/Dynamic_Coding/Temp_Bart/tq
-qsubfeval('Izh_network',V_init,tLim,dt,I,noise,cfg,'memreq',1024^3*6,'timreq',60^2*2);
+% cd ~/GIT/Dynamic_Coding/Temp_Bart/tq
+% qsubfeval('Izh_network',V_init,tLim,dt,I,noise,cfg,'memreq',1024^3*6,'timreq',60^2*2);
 
 
 %%
@@ -159,6 +163,7 @@ subaxis(4,2,2,4)
 plot(x,[Ne(:)/numE,Ni(:)/numI])
 
 S_out=output.S;
+S_orig=output.S_orig;
 figure(11)
 subaxis(1,3,1)
 imagesc(bsxfun(@times,I(1,2:numE+1),I(1,2:numE+1)'))

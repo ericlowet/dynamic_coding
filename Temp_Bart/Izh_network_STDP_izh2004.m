@@ -1,4 +1,4 @@
-function [V,t,output,spikes]=Izh_network(V_init,tLim,dt,I,noise,cfg)
+function [V,t,output,spikes]=Izh_network_STDP_izh2004(V_init,tLim,dt,I,noise,cfg)
 % [V,t,output,spikes]=Izh_network(V_init,tLim,dt,I,noise,cfg)
 % 
 % simulation parameters:
@@ -54,10 +54,11 @@ catch
 end
 
 try
-  S=cfg.S;
+  S=cfg.S;  
 catch
   warning('No synaptic connections given; cfg.S missing')
 end
+
 
 try
   EI=cfg.EI;
@@ -66,10 +67,14 @@ catch
   EI=true(size(S,1));
 end
 
+output=[];
+output.I=I_orig;
+output.EI=EI;
+
 try
   STDPflag=cfg.STDP;
 catch
-  STDPflag=true;
+  STDPflag=true;  
 end
 
 try
@@ -95,22 +100,19 @@ end
 
 %%
 
+
 % conductances; AMPA and GABA -- NOTE this is FROM the neuron
 tau_G=[10; 5];
 G=nan(1,numNeur,numIt);
 G(:,:,1)=0;
 
-% STDP memory
-tau_STDP=[17; 17];
-X=zeros(2,numNeur,numIt);
-X(:,:,1)=0;
-A_STDP=[.01; .01];
+
 
 Smax=mean(sum(S(EI,EI),2));
 
 spiks=sparse(numNeur,numIt);
 
-V_AMPA=50;
+V_AMPA=0;
 V_GABA=-90;
 
 if nargout>3
@@ -127,10 +129,22 @@ if verboseFlag
   reverseStr=[];
 end
 
-output.S_orig=S;
-output.I=I_orig;
-output.EI=EI;
-
+if STDPflag
+  output.S_orig=S;  
+  S_structSQ=logical(S);
+  EISel=false(numNeur,numNeur);
+  EISel(1:sum(EI),1:sum(EI))=true;
+  
+  lastSpike=ones(sum(EI),1)*inf;
+  
+  % keep track of dynamics of synapses that exist structurally and are E->E
+  S_dyn=full([S(S_structSQ & EISel)'; 0*S(S_structSQ & EISel)']); % first temporal derivitive equal to 0
+  A=1e-6;
+  % STDP memory
+  tau_stdp=[20; 15];
+  A_stdp=[.004; .004];
+  
+end
 
 %% integration loop
 for n=2:numIt
@@ -150,8 +164,14 @@ for n=2:numIt
   G(:,~EI,n)=RK4(t(n-1),G(:,~EI,n-1),dt,'exp_decay',tau_G(2));
   
   if STDPflag
-    % STDP memory (Only E-E interactions)
-    X(:,EI,n)=RK4(t(n-1),X(:,EI,n-1),dt,'exp_decay',tau_STDP);
+    % Synaptic dynamics (Only E-E interactions)
+    S_dyn(:,:,n)=RK4(t(n-1),S_dyn(:,:,n-1),dt,'SynDecay_izh2004',A);
+    
+    %manually clip synapses to [0 .1];
+    S_dyn(1,S_dyn(1,:,n)<0,n)=0;
+    S_dyn(1,S_dyn(1,:,n)>0.1,n)=0.1;
+    
+    S(S_structSQ & EISel)=S_dyn(1,:,n);
   end
     
   
@@ -167,24 +187,18 @@ for n=2:numIt
       V(1,firSel,n)=c;
       V(2,firSel,n)=V(2,firSel,n-1)+d;
     end
-    
+    lastSpike(firSel(EI))=0;
     % update synaptic channels to fully open
     G(1,firSel,n)=1;
     
-    if STDPflag
-      if any(firSel & EI)% update synapses using STDP
-        % update STDP memory (Only E-E interactions)
-        X(:,firSel & EI,n)=bsxfun(@plus,X(:,firSel & EI,n),A_STDP*0+1);
-        
-        S=S+STDP(t,S,X(:,:,n),A_STDP,firSel & EI);
-        
-        % hard bound to be larger than 0
-        S(S(:)<0)=0;
-        % mulitplicative normalization
-        sel=sum(S(EI,EI),2)>Smax;
-        if any(sel)
-          S(EIind(sel),EI)=bsxfun(@times,S(EIind(sel),EI),1./sum(S(EIind(sel),EI),2))*Smax;
-        end
+    if STDPflag && n>2
+      if any(firSel(EI))% update synapses using STDP
+        % update temporal derivative of synapses (Only E-E interactions)
+        tmax=max(tau_stdp)*10/dt;
+        tsel=(n-tmax):n;
+        tsel=tsel(tsel>0);
+        dsyn=STDP_izh2004(dt,firSel(EI),lastSpike,A_stdp,tau_stdp,S_structSQ(1:sum(EI),1:sum(EI)));
+        S_dyn(2,:,n)=S_dyn(2,:,n)+dsyn(S_structSQ(1:sum(EI),1:sum(EI)))';
       end
     end
 
@@ -199,14 +213,14 @@ for n=2:numIt
     
   end
   
-  % save every 250 iterations (but skip the last one, if simulation is
+  % save every 'saveInterval' iterations (but skip the last one, if simulation is
   % almost done)
   if outpFlag && mod(n,saveInterval)==0 && (numIt-n)>saveInterval/2
     output.G=G;
     output.S=S;
     output.spiks=spiks;
     if STDPflag
-      output.X=X;
+      output.S_dyn=S_dyn;
     end
     save(outpFname,'V','t','output')
     try 
@@ -220,6 +234,10 @@ for n=2:numIt
     reverseStr = repmat(sprintf('\b'), 1, length(msg));
   end
   
+  if STDPflag
+    lastSpike=lastSpike+1;
+  end
+  
 end
 
 % output.I_tot=I_tot;
@@ -227,7 +245,7 @@ output.G=G;
 output.S=S;
 output.spiks=spiks;
 if STDPflag
-  output.X=X;
+  output.S_dyn=S_dyn;
 end
 if outpFlag
   save(outpFname,'V','t','output')
