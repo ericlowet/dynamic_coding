@@ -77,6 +77,20 @@ catch
   STDPflag=true;  
 end
 
+if STDPflag
+  try
+    tau_STDP=cfg.tau_STDP;
+  catch    
+    tau_STDP=[20; 15];
+  end
+  try
+    A_STDP=cfg.A_STDP;
+  catch
+    A_STDP=[.004; .004];
+  end
+end
+
+
 try
   outpFname=cfg.output;
   outpFlag=true;
@@ -140,10 +154,6 @@ if STDPflag
   % keep track of dynamics of synapses that exist structurally and are E->E
   S_dyn=full([S(S_structSQ & EISel)'; 0*S(S_structSQ & EISel)']); % first temporal derivitive equal to 0
   A=1e-6;
-  % STDP memory
-  tau_stdp=[20; 15];
-  A_stdp=[.004; .004];
-  
 end
 
 %% integration loop
@@ -167,9 +177,10 @@ for n=2:numIt
     % Synaptic dynamics (Only E-E interactions)
     S_dyn(:,:,n)=RK4(t(n-1),S_dyn(:,:,n-1),dt,'SynDecay_izh2004',A);
     
-    %manually clip synapses to [0 .1];
-    S_dyn(1,S_dyn(1,:,n)<0,n)=0;
-    S_dyn(1,S_dyn(1,:,n)>0.1,n)=0.1;
+    %manually clip synapses to [0 .05];
+    synLims=[0 .05];
+    S_dyn(1,S_dyn(1,:,n)<synLims(1),n)=synLims(1);
+    S_dyn(1,S_dyn(1,:,n)>synLims(2),n)=synLims(2);
     
     S(S_structSQ & EISel)=S_dyn(1,:,n);
   end
@@ -177,6 +188,7 @@ for n=2:numIt
   
   
   firSel=squeeze(V(1,:,n)>30);
+  firSel_E=[];
   if any(firSel)
     
     % reset membrane potential
@@ -187,27 +199,25 @@ for n=2:numIt
       V(1,firSel,n)=c;
       V(2,firSel,n)=V(2,firSel,n-1)+d;
     end
-    lastSpike(firSel(EI))=0;
+    
     % update synaptic channels to fully open
     G(1,firSel,n)=1;
     
-    if STDPflag && n>2
-      if any(firSel(EI))% update synapses using STDP
-        % update temporal derivative of synapses (Only E-E interactions)
-        tmax=max(tau_stdp)*10/dt;
-        tsel=(n-tmax):n;
-        tsel=tsel(tsel>0);
-        dsyn=STDP_izh2004(dt,firSel(EI),lastSpike,A_stdp,tau_stdp,S_structSQ(1:sum(EI),1:sum(EI)));
-        S_dyn(2,:,n)=S_dyn(2,:,n)+dsyn(S_structSQ(1:sum(EI),1:sum(EI)))';
-      end
-    end
-
     spiks(firSel,n)=true;
     % create spikes structure
     if nargout>3
       firSel=find(firSel);
       for firIdx=1:numel(firSel)
         spikes.timestamp{firSel(firIdx)}=[spikes.timestamp{firSel(firIdx)} t(n)];
+      end
+    end
+    
+    if STDPflag && n>2      
+      firSel_E=firSel(firSel<=sum(EI));
+      if ~isempty(firSel_E)% update synapses using STDP
+        % update temporal derivative of synapses (Only E-E interactions)
+        dsyn=STDP_izh2004(dt,firSel_E,lastSpike,A_STDP,tau_STDP,S_structSQ(1:sum(EI),1:sum(EI)));
+        S_dyn(2,:,n)=S_dyn(2,:,n)+dsyn(S_structSQ(EISel))';
       end
     end
     
@@ -234,7 +244,8 @@ for n=2:numIt
     reverseStr = repmat(sprintf('\b'), 1, length(msg));
   end
   
-  if STDPflag
+  if STDPflag 
+    lastSpike(firSel_E)=0;
     lastSpike=lastSpike+1;
   end
   

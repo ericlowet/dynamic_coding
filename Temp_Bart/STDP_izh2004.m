@@ -14,8 +14,15 @@ if nargin < 6
   S_struct=logical(size(spiks,1));
 end
 
-S_struct=reshape(S_struct,sqrt(numel(S_struct)),sqrt(numel(S_struct)));
-firIdx=find(firSel);
+if iscolumn(S_struct) || isrow(S_struct)
+  S_struct=reshape(S_struct,sqrt(numel(S_struct)),sqrt(numel(S_struct)));
+end
+
+if islogical(firSel)
+  firIdx=find(firSel);
+else
+  firIdx=firSel;
+end
 
 dsyn=zeros(size(lastSpike,1));
 
@@ -24,12 +31,12 @@ for n=1:numel(firIdx)
   % presyn neuron j spikes, s'_ij decreases by A_stdp(1)*exp(t_i-t)/tau_stdp(1)
   postsyns=find(S_struct(n,:));
   delta_t=lastSpike(postsyns)/dt;
-  dsyn(n,postsyns)=-A_stdp(1)*exp(-delta_t./tau_stdp(1));
+  dsyn(postsyns,firIdx(n))=-A_stdp(1)*exp(-delta_t./tau_stdp(1));
   
   % Update as postsynaptic neurons
   % postsyn neuron i spikes, s'_ij increases by A_stdp(2)*exp(t_j-t)/tau_stdp(2)
   presyns=find(S_struct(:,n));  
   delta_t=lastSpike(presyns)/dt;
-  dsyn(n,presyns)=A_stdp(2)*exp(-delta_t./tau_stdp(2));
+  dsyn(firIdx(n),presyns)=A_stdp(2)*exp(-delta_t./tau_stdp(2));
   
 end

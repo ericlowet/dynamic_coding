@@ -72,6 +72,20 @@ catch
   STDPflag=true;
 end
 
+
+if STDPflag
+  try
+    tau_STDP=cfg.tau_STDP(:);
+  catch    
+    tau_STDP=[15; 15];
+  end
+  try
+    A_STDP=cfg.A_STDP(:);
+  catch
+    A_STDP=[.01; .01];
+  end
+end
+
 try
   outpFname=cfg.output;
   outpFlag=true;
@@ -101,10 +115,8 @@ G=nan(1,numNeur,numIt);
 G(:,:,1)=0;
 
 % STDP memory
-tau_STDP=[17; 17];
 X=zeros(2,numNeur,numIt);
 X(:,:,1)=0;
-A_STDP=[.01; .01];
 
 Smax=mean(sum(S(EI,EI),2));
 

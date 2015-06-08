@@ -2,3 +2,4 @@
 *.mat
 /output/*
 /Temp_Bart/tq
+/Temp_Bart/output_figs
