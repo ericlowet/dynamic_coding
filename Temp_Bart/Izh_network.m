@@ -1,4 +1,4 @@
-function [V,t,output,spikes]=Izh_network(V_init,tLim,dt,I,noise,cfg)
+function [output,spikes]=Izh_network(V_init,I,noise,cfg)
 % [V,t,output,spikes]=Izh_network(V_init,tLim,dt,I,noise,cfg)
 % 
 % simulation parameters:
@@ -24,26 +24,33 @@ function [V,t,output,spikes]=Izh_network(V_init,tLim,dt,I,noise,cfg)
 % 
 
 %% Initializing variables
+tLim=cfg.tLim;
+dt=cfg.dt;
+
 t=tLim(1):dt:tLim(2);
+
+output.t=t;
+
 numIt=numel(t);
 numNeur=size(I,2)-1;
-V=nan(2,numNeur,numIt);
+
+
 I_inp=zeros(numIt,numNeur);
 
 % interpolate I and noise to desired resolution
+% Note: perhaps change this to do this in steps to save memory space
 I_orig=I;
 I=interp1(I(:,1),I(:,2:end),t);
 
-if nargin<5
+if nargin<3
   noise=sparse(numIt,numNeur);
 else
   noise=interp1(noise(:,1),noise(:,2:end),t);
 end
 
-V(1,:,1)=V_init(1,:);
-V(2,:,1)=V_init(2,:);
+V=V_init;
 
-%% parsing cfg
+%% parsing rest of cfg
 try
   a=cfg.a;
   b=cfg.b;
@@ -84,13 +91,11 @@ if STDPflag
   catch
     A_STDP=[.01; .01];
   end
-end
-
-try
-  outpFname=cfg.output;
-  outpFlag=true;
-catch
-  outpFlag=false;
+  
+  E_syn=false(size(S));
+  E_syn(:,1:sum(EI))=true;
+  
+  deltaS=zeros(numIt,2);
 end
 
 try
@@ -99,24 +104,53 @@ catch
   verboseFlag=false;
 end
 
+try
+  outpFname=cfg.output;
+  outpFlag=true;
+  
+  if verboseFlag && exist([outpFname],'file')
+    warning([outpFname ' already exists...'])
+    reply = input('Do you want to overwrite? Y/N [N]: ', 's');
+    if isempty(reply)
+      outpFlag = false;
+    elseif strcmpi(reply,'n')
+      outpFlag = false;
+    elseif strcmpi(reply,'y')
+      outpFlag = true;
+    else
+      warning('input not recognized, not overwriting')
+      outpFlag = false;
+    end
+  end
+catch
+  outpFlag=false;
+end
+
+
 if outpFlag
   try
     saveInterval=cfg.saveInterval;
   catch
     saveInterval=250;
-  end
+  end  
+end
+
+try
+  fullOutput=cfg.fullOutput;
+catch
+  fullOutput=0;
 end
 
 %%
 
 % conductances; AMPA and GABA -- NOTE this is FROM the neuron
 tau_G=[10; 5];
-G=nan(1,numNeur,numIt);
-G(:,:,1)=0;
+G=zeros(1,numNeur);
 
 % STDP memory
-X=zeros(2,numNeur,numIt);
-X(:,:,1)=0;
+if STDPflag
+  X=zeros(2,numNeur);
+end
 
 Smax=mean(sum(S(EI,EI),2));
 
@@ -125,7 +159,7 @@ spiks=sparse(numNeur,numIt);
 V_AMPA=50;
 V_GABA=-90;
 
-if nargout>3
+if nargout>1
   spikes=[];
   spikes.label=cell(1,numNeur);
   spikes.label(EI)={'E'};
@@ -143,53 +177,70 @@ output.S_orig=S;
 output.I=I_orig;
 output.EI=EI;
 
+if fullOutput
+  V_list=nan(2,numNeur,numIt);  
+  G_list=nan(1,numNeur,numIt);
+  G_list(:,:,1)=0;
+  if STDPflag
+    X_list=nan(2,numNeur,numIt);
+    X_list(:,:,1)=0;
+  end
+end
 
 %% integration loop
 for n=2:numIt
   
-  I_E=G(1,EI,n-1)*S(:,EI).'.*(V_AMPA-V(1,:,n-1));
-  I_I=G(1,~EI,n-1)*S(:,~EI).'.*(V_GABA-V(1,:,n-1));
+  I_E=G(1,EI)*S(:,EI).'.*(V_AMPA-V(1,:));
+  I_I=G(1,~EI)*S(:,~EI).'.*(V_GABA-V(1,:));
   I_tot=I(n,:)+I_E+I_I;
 
   I_tot=I_tot+noise(n,:).*randn(1,numNeur);
-  I_inp(n,:)=I_tot;
   
   % membrane potential
-  V(:,:,n)=RK4(t(n-1),V(:,:,n-1),dt,'Izh_neuron',a,b,I_tot);
-  
+  V(:,:)=RK4(t(n-1),V(:,:),dt,'Izh_neuron',a,b,I_tot);
+    
   % synaptic conductance
-  G(:,EI,n)=RK4(t(n-1),G(:,EI,n-1),dt,'exp_decay',tau_G(1));
-  G(:,~EI,n)=RK4(t(n-1),G(:,~EI,n-1),dt,'exp_decay',tau_G(2));
-  
+  G(:,EI)=RK4(t(n-1),G(:,EI),dt,'exp_decay',tau_G(1));
+  G(:,~EI)=RK4(t(n-1),G(:,~EI),dt,'exp_decay',tau_G(2));
+
   if STDPflag
-    % STDP memory (Only E-E interactions)
-    X(:,EI,n)=RK4(t(n-1),X(:,EI,n-1),dt,'exp_decay',tau_STDP);
+    % STDP memory
+    X(:,:)=RK4(t(n-1),X(:,:),dt,'exp_decay',tau_STDP);
+    if fullOutput
+      X_list(:,:,n)=X(:,:);
+    end
   end
     
   
   
-  firSel=squeeze(V(1,:,n)>30);
+  firSel=squeeze(V(1,:)>30);
   if any(firSel)
     
     % reset membrane potential
     if numel(c)>1
-      V(1,firSel,n)=c(firSel);
-      V(2,firSel,n)=V(2,firSel,n-1)+d(firSel);
+      V(1,firSel)=c(firSel);
+      V(2,firSel)=V(2,firSel)+d(firSel);
     else
-      V(1,firSel,n)=c;
-      V(2,firSel,n)=V(2,firSel,n-1)+d;
+      V(1,firSel)=c;
+      V(2,firSel)=V(2,firSel)+d;
     end
     
     % update synaptic channels to fully open
-    G(1,firSel,n)=1;
+    G(1,firSel)=1;
     
     if STDPflag
-      if any(firSel & EI)% update synapses using STDP
-        % update STDP memory (Only E-E interactions)
-        X(:,firSel & EI,n)=bsxfun(@plus,X(:,firSel & EI,n),A_STDP*0+1);
+      if any(firSel)% update synapses using STDP
+        % update STDP memory (Only E-E and E-I interactions)
+        X(:,firSel)=bsxfun(@plus,X(:,firSel),A_STDP*0+1);
         
-        S=S+STDP(t,S,X(:,:,n),A_STDP,firSel & EI);
+        if fullOutput
+          X_list(:,:,n)=X(:,:);
+        end
         
+        dsyn=STDP(t,S,X(:,:),A_STDP,firSel,S>0 & E_syn);
+        S=S+dsyn;
+        deltaS(n,1)=sum(dsyn(:));
+        deltaS(n,2)=sum(abs(dsyn(:)));
         % hard bound to be larger than 0
         S(S(:)<0)=0;
         % mulitplicative normalization
@@ -202,7 +253,7 @@ for n=2:numIt
 
     spiks(firSel,n)=true;
     % create spikes structure
-    if nargout>3
+    if nargout>1
       firSel=find(firSel);
       for firIdx=1:numel(firSel)
         spikes.timestamp{firSel(firIdx)}=[spikes.timestamp{firSel(firIdx)} t(n)];
@@ -214,14 +265,27 @@ for n=2:numIt
   % save every 250 iterations (but skip the last one, if simulation is
   % almost done)
   if outpFlag && mod(n,saveInterval)==0 && (numIt-n)>saveInterval/2
-    output.G=G;
     output.S=S;
     output.spiks=spiks;
+    
     if STDPflag
-      output.X=X;
+      output.deltaS=deltaS;
+      if fullOutput
+        output.X=X_list;
+      end
+    end    
+    
+    if fullOutput
+      G_list(:,EI,n)=G(:,EI);
+      G_list(:,~EI,n)=G(:,~EI);
+      V_list(:,:,n)=V;
+      I_inp(n,:)=I_tot;
+      output.G=G_list;
+      output.I_tot=I_inp;
+      output.V=V_list;
     end
-    save(outpFname,'V','t','output')
-    try 
+    save(outpFname,'output')
+    try
       save(outpFname,'spikes','-append')
     end
   end
@@ -234,17 +298,29 @@ for n=2:numIt
   
 end
 
-% output.I_tot=I_tot;
-output.G=G;
+
 output.S=S;
 output.spiks=spiks;
+
 if STDPflag
-  output.X=X;
+  output.deltaS=deltaS;
+  if fullOutput
+    output.X=X_list;
+  end
 end
-if outpFlag
-  save(outpFname,'V','t','output')
+
+if fullOutput
+  G_list(:,EI,n)=G(:,EI);
+  G_list(:,~EI,n)=G(:,~EI);
+  V_list(:,:,n)=V;
+  I_inp(n,:)=I_tot;
+  output.G=G_list;
+  output.I_tot=I_inp;
+  output.V=V_list;
+end
+if outputFlag
+  save(outpFname,'output')
   try
     save(outpFname,'spikes','-append')
   end
 end
-
