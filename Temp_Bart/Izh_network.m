@@ -29,7 +29,8 @@ dt=cfg.dt;
 
 t=tLim(1):dt:tLim(2);
 
-output.t=t;
+%save input structure
+output.cfg=cfg;
 
 numIt=numel(t);
 numNeur=size(I,2)-1;
@@ -101,7 +102,7 @@ end
 try
   verboseFlag=cfg.verbose;
 catch
-  verboseFlag=false;
+  verboseFlag=true;
 end
 
 try
@@ -266,10 +267,11 @@ for n=2:numIt
   % almost done)
   if outpFlag && mod(n,saveInterval)==0 && (numIt-n)>saveInterval/2
     output.S=S;
-    output.spiks=spiks;
+    output.spiks=spiks(:,1:n);
+    output.t=t(1:n);
     
     if STDPflag
-      output.deltaS=deltaS;
+      output.deltaS=deltaS(1:n,:);
       if fullOutput
         output.X=X_list;
       end
@@ -280,9 +282,9 @@ for n=2:numIt
       G_list(:,~EI,n)=G(:,~EI);
       V_list(:,:,n)=V;
       I_inp(n,:)=I_tot;
-      output.G=G_list;
-      output.I_tot=I_inp;
-      output.V=V_list;
+      output.G=G_list(:,:,1:n);
+      output.I_tot=I_inp(1:n,:);
+      output.V=V_list(:,:,1:n);
     end
     save(outpFname,'output')
     try
@@ -298,7 +300,7 @@ for n=2:numIt
   
 end
 
-
+output.t=t;
 output.S=S;
 output.spiks=spiks;
 
@@ -318,7 +320,7 @@ if fullOutput
   output.I_tot=I_inp;
   output.V=V_list;
 end
-if outputFlag
+if outpFlag
   save(outpFname,'output')
   try
     save(outpFname,'spikes','-append')

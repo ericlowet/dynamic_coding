@@ -1,4 +1,140 @@
 addpath ~/GIT/Dynamic_Coding/Temp_Bart/paruly
+
+
+
+
+
+numNeurLin=30;
+
+
+
+%% generate stimuli
+saveStim=0;
+genStim=0;
+if genStim
+  numStim=5;
+  corrLim=.1;
+  I=randn(numNeurLin,numNeurLin,numStim);
+  sigI=4*dR;
+  Rdum=min(R_e):dR:max(R_e);
+  Rdum=Rdum-mean(Rdum);
+  filtKern=exp(-Rdum.^2/(2*sigI^2));
+  filtKern=bsxfun(@times,filtKern,filtKern');
+  filtKern=filtKern/sum(filtKern(:));
+  for n=1:numStim
+    Idum=I(:,:,n);
+    Idum=ifft2(fft2(Idum).*fft2(filtKern));
+    Idum=Idum-min(Idum(:));
+    Idum=Idum/mean(Idum(:))*4;
+    I(:,:,n)=Idum;
+  end
+  
+  Idum=permute(I,[3 1 2]);
+  R=corr(Idum(:,:)');
+  R(logical(eye(numStim)))=nan;
+  mR=nanmax(R);
+  
+  [mR,mIdx]=max(mR);
+  genFlag= mR > corrLim;
+  while genFlag
+    
+    Idum=rand(numNeurLin);
+    Idum=ifft2(fft2(Idum).*fft2(filtKern));
+    Idum=Idum-min(Idum(:));
+    Idum=Idum/mean(Idum(:))*4;
+    I(:,:,mIdx)=Idum;
+    
+    Idum=permute(I,[3 1 2]);
+    R=corr(Idum(:,:)');
+    R(logical(eye(numStim)))=nan;
+    mR=nanmax(R);
+    [mR,mIdx]=max(mR);
+    genFlag= mR > corrLim;
+  end
+  
+  Idum=permute(I,[3 1 2]);
+  R=corr(Idum(:,:)');  
+  
+  stims=I;
+  %% generate blocks
+  blockLen=1e3; %1 second blocks
+  dt=.5;
+  tLim=[0 50e3]; % 50 seconds, --> 10 seconds per block
+  
+  numBlocks=round(tLim(2)/blockLen);
+  
+  numTrains=ceil(numBlocks/numStim);
+  
+  trains=repmat([1:5]',numTrains,1);
+  trains=trains(1:numBlocks);
+  
+  trains=[trains'; trains'];
+  trains=trains(:); %double up: once for onset, once for ofset. Otherwise the simulation would interpolate between stimuli
+  
+  tim=[dt:blockLen:tLim(2); blockLen:blockLen:tLim(2)];
+  
+  Idum=permute(stims,[3 1 2]);
+  
+  I=zeros(numTrains*2,numE+numI);
+  
+  for n=1:numel(trains)
+    I(n,1:numE)=Idum(trains(n),:);
+  end
+  
+  % add  timing column
+  I=[tim(:) I];
+  
+  % SNR = 10
+  noise=I.*.01;
+  noise(:,1)=tim(:);
+else
+  load(fullfile('/home/mrphys/bargip/GIT/Dynamic_Coding/Temp_Bart/stimuli','N10_S5.mat'));
+  numStim=5;
+  Idum=permute(stims,[3 1 2]);
+  R=corr(Idum(:,:)');
+end
+
+
+figure(1)
+clf
+set(1,'position',[100 100 1200 800])
+colormap(paruly(128))
+for n=1:numStim
+subaxis(2,3,n)
+imagesc(stims(:,:,n))
+axis image
+h=colorbar;
+set(h,'location','southoutside')
+title(['stimulus ' char(64+n)])
+end
+subaxis(2,3,n+1)
+
+imageNan(1,1,R,[-1 1])
+set(gca,'xtick',1:numStim,'xticklabel',char(64+[1:numStim]'))
+set(gca,'ytick',1:numStim,'yticklabel',char(64+[1:numStim]'))
+axis image
+h=colorbar;
+set(h,'location','southoutside')
+title('Correlation in inputs')
+
+
+if saveStim
+  fname=['N' num2str(numNeurLin) '_S' num2str(numStim)];
+  save(fullfile('/home/mrphys/bargip/GIT/Dynamic_Coding/Temp_Bart/stimuli',fname),'stims','I','trains','-append')
+  export_fig(fullfile('/home/mrphys/bargip/GIT/Dynamic_Coding/Temp_Bart/stimuli',fname),'-png','-eps','-transparent',1)  
+end
+
+
+
+
+
+
+
+
+
+
+
+%% neuron and simulation parameters
 % parameters RS
 a=.02;
 b=.2;
@@ -13,11 +149,6 @@ c=-65;
 d=2;
 parI=[a; b; c; d];
 
-tLim=[0 60e3];
-dt=.5;
-
-
-numNeurLin=10;
 dR=50e-6;
 % E->E, E->I, I->E, I->I
 sig=[2 3 10 3]*dR;
@@ -29,60 +160,6 @@ numE=size(R_e,1);
 numI=size(R_i,1);
 S=connMat;
 % S(1:numE,1:numE)=double(connMat_sep{1}>0)*.01;
-
-% S=S_out;
-
-I=randn(numNeurLin,numNeurLin);
-sigI=4*dR;
-Rdum=min(R_e):dR:max(R_e);
-Rdum=Rdum-mean(Rdum);
-filtKern=exp(-Rdum.^2/(2*sigI^2));
-filtKern=bsxfun(@times,filtKern,filtKern');
-filtKern=filtKern/sum(filtKern(:));
-I=ifft2(fft2(I).*fft2(filtKern));
-I=I-min(I(:));
-I=I/mean(I(:))*4;
-
-I_orig=I;
-
-figure(1)
-clf
-set(1,'position',[100 100 1200 500])
-colormap(paruly(128))
-subaxis(1,3,1)
-imagesc(I_orig)
-axis image
-h=colorbar;
-set(h,'location','southoutside')
-title('Input')
-subaxis(1,3,2)
-imagesc(S>0)
-axis image
-h=colorbar;
-set(h,'location','southoutside')
-title('adjancency matrix')
-subaxis(1,3,3)
-imagesc(S)
-axis image
-h=colorbar;
-set(h,'location','southoutside')
-title('S (synaptic conductances)')
-
-savefig=0;
-if savefig
-  fname='inputs'
-  export_fig(fullfile('/home/mrphys/bargip/GIT/Dynamic_Coding/Temp_Bart/output_figs',[fname]),'-png','-pdf','-transparent',1);
-end
-
-
-
-I=[I(:); zeros(size(R_i,1),1)]';
-
-I=[tLim(1) I; tLim(2) I];
-
-noise=I.*.01;
-noise(:,1)=tLim;
-
 
 numNeur=size(R_e,1)+size(R_i,1);
 V_init=repmat([c; b*c],1,numNeur);
@@ -99,10 +176,26 @@ pars(4,1:numE)=pars(4,1:numE)+randn(1,numE)*1;
 pars(1,numE+1:end)=pars(1,numE+1:end)+rand(1,numI)*.03;
 pars(2,numE+1:end)=pars(2,numE+1:end)+rand(1,numI)*.03;
 
+% plot synapstic connections
+figure(2)
+clf
+colormap(paruly(128))
+set(2,'position',[100 100 1000 500])
+subaxis(1,2,1)
+imagesc(S>0)
+axis image
+h=colorbar;
+set(h,'location','southoutside')
+title('adjancency matrix')
+subaxis(1,2,2)
+imagesc(S)
+axis image
+h=colorbar;
+set(h,'location','southoutside')
+title('S (synaptic conductances)')
+
 
 %%
-
-
 
 cfg=[];
 cfg.tLim=tLim;
@@ -114,8 +207,8 @@ cfg.d=pars(4,:);
 cfg.S=S;
 cfg.EI=EI;
 cfg.STDP=1;
-cfg.output='/home/mrphys/bargip/GIT/Dynamic_Coding/Temp_Bart/50x50_snr0.1_60s.mat_slim';
-cfg.saveInterval=4e3;
+cfg.output=['/home/mrphys/bargip/GIT/Dynamic_Coding/Temp_Bart/N' num2str(numNeurLin) '_S' num2str(numStim) '_snr0.1_' num2str(tLim(2)/1e3) 's_block_' num2str(blockLen/1e3) 's.mat'];
+cfg.saveInterval=2.5e3;
 cfg.verbose=0;
 cfg.fullOutput=0;
 
@@ -142,8 +235,8 @@ I=output.I;
 try t=output.t; end
 [spec,f,tt]=ft_specest_tfr(full(sum(spiks(EI,:))),t/1e3,'freqoi',[0:100],'verbose',0,'width',21);
   
-tLimPlot=[-.5e3 0]+max([spikes.timestamp{:}]);
-
+tLimPlot2=[-.5e3 0]+max([spikes.timestamp{:}]);
+tLimPlot1=[0 500]+2250;
 dt=diff(t(1:2));
 
 numE=sum(output.EI);
@@ -153,9 +246,9 @@ figure(10)
 clf
 set(10,'position',[100 100 1200 800])
 ns_plotspikes(spikes,10,421);
-xlim([0 .5e3])
+xlim(tLimPlot1)
 ns_plotspikes(spikes,10,422);
-xlim(tLimPlot)
+xlim(tLimPlot2)
 
 kernel=exp(-[(-20/dt):(20/dt)].^2/(2*(1/dt)^2)); 
 kernel=kernel/sum(kernel);
@@ -171,7 +264,7 @@ plot(t,conv(full(sum(spiks(~EI,:))),kernel,'same'),'color',[0 .5 0])
 hold on
 plot(t,conv(full(sum(spiks(EI,:))),kernel,'same'))
 axis tight
-xlim([0 .5e3])
+xlim(tLimPlot1)
 ylabel('# of neurons firing')
 
 subaxis(4,2,2,2)
@@ -179,7 +272,7 @@ plot(t,conv(full(sum(spiks(~EI,:))),kernel,'same'),'color',[0 .5 0])
 hold on
 plot(t,conv(full(sum(spiks(EI,:))),kernel,'same'))
 axis tight
-xlim(tLimPlot)
+xlim(tLimPlot2)
 
 
 subaxis(4,1,3)
@@ -187,7 +280,7 @@ cla
 % plot(f(f>=0),abs(spec(f>=0,:)))
 % xlim([0 100])
 imageNan(tt*1e3,f,squeeze(abs(spec)))
-xlim([0 tLimPlot(2)])
+xlim([0 max([spikes.timestamp{:}])])
 axis xy
 % hold on
 % boxCarLen=.3;
@@ -202,7 +295,7 @@ axis xy
 
 subaxis(4,2,1,4)
 x=0:.5:50;
-tSel=100:find(t==tLimPlot(2));
+tSel=100:find(t==max([spikes.timestamp{:}]));
 [Ne]=hist(sum(spiks(EI,tSel),2)/(numel(t(tSel))*dt*1e-3),x);
 [Ni]=hist(sum(spiks(~EI,tSel),2)/(numel(t(tSel))*dt*1e-3),x);
 % hold on
@@ -218,7 +311,7 @@ xlabel('Firing rate')
 title('histogram of F-rates')
 
 subaxis(4,2,2,4)
-plot(output.I(1,2:numE+1),sum(output.spiks(1:numE,:),2)*1e3/tLimPlot(2),'.')
+plot(output.I(1,2:numE+1),sum(output.spiks(1:numE,:),2)*1e3/max([spikes.timestamp{:}]),'.')
 xlabel('input (nA)')
 ylabel('Firing rate (Hz)')
 

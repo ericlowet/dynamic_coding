@@ -1,5 +1,15 @@
+# no autosave or .mat files
 *~
 *.mat
 /output/*
+
+#temporary files Bart
 /Temp_Bart/tq
 /Temp_Bart/output_figs
+
+#Do not track figures
+Thumbs.db
+*.png
+*.eps
+*.pdf
+*.fig
