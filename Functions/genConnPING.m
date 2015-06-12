@@ -1,17 +1,17 @@
-function [ connMat, connMat_sep, R_e, R_i ] = genConnections(numNeur, dR, sig, p, strength)
-%[ connMat, connMat_sep, R_e, R_i ] = genConnections(numNeur, sig, p)
+function [ connMat, connMat_sep, R_e, R_i ] = genConnPING(numNeur, dR, sig, p, strength)
+%[ connMat, connMat_sep, R_e, R_i ] = genConnPING(numNeur, dR, sig, p, strength)
 %   assumes 4:1 ratio of excitatory and inhibitory neurons
-% 
+%
 %%%%INPUT%
 %   numNeur:  the number of excitatory neurons along an edge of a square
 %   lattice.
 %   dR:       length of a lattice edge (in m)
 %   sig:      standard deviations of (circular) gaussian connection
-%   profiles (contains 4 values: EE, II, IE, EI)
+%   profiles (contains 4 values: E->E, E->I, I->E, I->I)
 %   p:        connection probability; fraction of possible sending neurons
-%   that project to each target neuron (contains 4 values: EE, II, IE, EI)
-%   strength: total conductance for each target neuron (contains 4 values: EE, II, IE, EI)
-% 
+%   that project to each target neuron (contains 4 values: E->E, E->I, I->E, I->I)
+%   strength: total conductance for each target neuron (contains 4 values: E->E, E->I, I->E, I->I)
+%
 %%%%OUTPUT%
 %   connMat:  full connection matrix containing synaptic weigths
 %   connMat_sep:  cell array containing the four sub matrices separatesly
@@ -45,9 +45,9 @@ R_i(:,2)=Rdum2(:);
 %% generating connection PDFs
 
 EE=1;
-II=2;
+EI=2;
 IE=3;
-EI=4;
+II=4;
 
 gridSize=numNeur*dR;
 
@@ -115,18 +115,16 @@ end
 
 function [connMat]=sampleConn(pdfCon,pCon)
 
-[numReceive,numSend]=size(pdfCon);  
+[numReceive,numSend]=size(pdfCon);
 cpdf=cumsum(pdfCon,2);
 
 %number of incoming connections per neuron (actually number of samples, therefore maximum)
 numCon=round(pCon*numSend);
 
-connMat=zeros(size(pdfCon));
+connMat=sparse(zeros(size(pdfCon)));
 dumsamp=rand(numCon, numReceive);
-for n=1:numCon
-  dum=bsxfun(@lt, dumsamp(n,:).', cpdf);
-  [~, con]=max(dum,[],2);
-  conidx=sub2ind([numReceive, numSend], [1:numReceive]', con);
-  connMat(conidx)=connMat(conidx)+1;
+for n=1:numReceive
+  [N,bin]=histc(dumsamp(:,n),[0 cpdf(n,:)]);
+  connMat(n,bin)=N(bin);
 end
 end
