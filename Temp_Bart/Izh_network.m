@@ -38,15 +38,9 @@ numNeur=size(I,2)-1;
 
 I_inp=zeros(numIt,numNeur);
 
-% interpolate I and noise to desired resolution
-% Note: perhaps change this to do this in steps to save memory space
-I_orig=I;
-I=interp1(I(:,1),I(:,2:end),t);
-
 if nargin<3
-  noise=sparse(numIt,numNeur);
-else
-  noise=interp1(noise(:,1),noise(:,2:end),t);
+  noise=zeros(2,numNeur);
+  noise=[tLim(:) noise];
 end
 
 V=V_init;
@@ -174,6 +168,10 @@ if verboseFlag
   reverseStr=[];
 end
 
+I_orig=I;
+noise_orig=noise;
+interpIval=1e3;
+
 output.S_orig=S;
 output.I=I_orig;
 output.EI=EI;
@@ -188,14 +186,30 @@ if fullOutput
   end
 end
 
+
+
+% interpolate I and noise to desired resolution
+% Note: this is done in steps of interpIval to save memory space
+I=interp1(I_orig(:,1),I_orig(:,2:end),t([1:interpIval]));
+noise=interp1(noise_orig(:,1),noise_orig(:,2:end),t([1:interpIval]));
+interpCnt=1;
 %% integration loop
 for n=2:numIt
   
+  interpCnt=interpCnt+1;
+  if interpCnt==(interpIval+1)
+    % interpolate I and noise to desired resolution
+    % Note: this is done in steps of interpIval to save memory space
+    interpCnt=1;
+    I=interp1(I_orig(:,1),I_orig(:,2:end),t([1:interpIval]+n-1));
+    noise=interp1(noise_orig(:,1),noise_orig(:,2:end),t([1:interpIval]+n-1));
+  end
+  
   I_E=G(1,EI)*S(:,EI).'.*(V_AMPA-V(1,:));
   I_I=G(1,~EI)*S(:,~EI).'.*(V_GABA-V(1,:));
-  I_tot=I(n,:)+I_E+I_I;
+  I_tot=I(interpCnt,:)+I_E+I_I;
 
-  I_tot=I_tot+noise(n,:).*randn(1,numNeur);
+  I_tot=I_tot+noise(interpCnt,:).*randn(1,numNeur);
   
   % membrane potential
   V(:,:)=RK4(t(n-1),V(:,:),dt,'Izh_neuron',a,b,I_tot);
