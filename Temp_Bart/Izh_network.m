@@ -192,6 +192,8 @@ end
 % Note: this is done in steps of interpIval to save memory space
 I=interp1(I_orig(:,1),I_orig(:,2:end),t([1:interpIval]));
 noise=interp1(noise_orig(:,1),noise_orig(:,2:end),t([1:interpIval]));
+I(isnan(I))=0;
+noise(isnan(noise))=0;
 interpCnt=1;
 %% integration loop
 for n=2:numIt
@@ -203,6 +205,8 @@ for n=2:numIt
     interpCnt=1;
     I=interp1(I_orig(:,1),I_orig(:,2:end),t([1:interpIval]+n-1));
     noise=interp1(noise_orig(:,1),noise_orig(:,2:end),t([1:interpIval]+n-1));
+    I(isnan(I))=0;
+    noise(isnan(noise))=0;
   end
   
   I_E=G(1,EI)*S(:,EI).'.*(V_AMPA-V(1,:));
