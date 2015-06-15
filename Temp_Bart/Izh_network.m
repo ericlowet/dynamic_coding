@@ -101,21 +101,26 @@ end
 
 try
   outpFname=cfg.output;
-  outpFlag=true;
-  
-  if verboseFlag && exist([outpFname],'file')
-    warning([outpFname ' already exists...'])
-    reply = input('Do you want to overwrite? Y/N [N]: ', 's');
-    if isempty(reply)
-      outpFlag = false;
-    elseif strcmpi(reply,'n')
-      outpFlag = false;
-    elseif strcmpi(reply,'y')
-      outpFlag = true;
-    else
-      warning('input not recognized, not overwriting')
-      outpFlag = false;
+  if ~isempty(outpFname)
+    outpFlag=true;
+    
+    if verboseFlag && exist([outpFname],'file')
+      warning([outpFname ' already exists...'])
+      reply = input('Do you want to overwrite? Y/N [N]: ', 's');
+      if isempty(reply)
+        outpFlag = false;
+      elseif strcmpi(reply,'n')
+        outpFlag = false;
+      elseif strcmpi(reply,'y')
+        outpFlag = true;
+      else
+        warning('input not recognized, not overwriting')
+        outpFlag = false;
+      end
+      
     end
+  else
+    outpFlag=false;
   end
 catch
   outpFlag=false;
@@ -250,7 +255,8 @@ for n=2:numIt
     if STDPflag
       if any(firSel)% update synapses using STDP
         % update STDP memory (Only E-E and E-I interactions)
-        X(:,firSel)=bsxfun(@plus,X(:,firSel),A_STDP*0+1);
+%         X(:,firSel)=bsxfun(@plus,X(:,firSel),A_STDP*0+1);
+        X(:,firSel)=1;
         
         if fullOutput
           X_list(:,:,n)=X(:,:);
