@@ -11,6 +11,6 @@ dS = zeros(size(S));
 for spike_n=find(firSel)
     % look on the memory variable X of all neurons conected to spiking
     % neuron
-    dS(spike_n, S_struct(spike_n,:)) = X(1,S_struct(spike_n,:)).*A_pos; % post-synaptic spike
-    dS(S_struct(:,spike_n),spike_n)  = X(1,S_struct(:,spike_n)).*A_neg; % pre-synaptic spike
+    dS(spike_n, S_struct(spike_n,:)) = X(1,S_struct(spike_n,:)).*A_neg; % post-synaptic spike
+    dS(S_struct(:,spike_n),spike_n)  = X(1,S_struct(:,spike_n)).*A_pos; % pre-synaptic spike
 end
