@@ -1,5 +1,5 @@
-function [output,spikes]=Izh_network(input)
-% [V,t,output,spikes]=Izh_network(input)
+function [output,spikes]=Izh_network_TAH(input)
+% [V,t,output,spikes]=Izh_network_TAH(input)
 % 
 % 
 % 
@@ -94,7 +94,7 @@ if STDPflag
   try
     tau_STDP=input.tau_STDP(:);
   catch    
-    tau_STDP=[15; 15];
+    tau_STDP=[20; 30];
   end
   try
     A_STDP=input.A_STDP(:);
@@ -156,6 +156,25 @@ catch
   fullOutput=0;
 end
 
+try 
+  TAHpars=input.TAHpars;
+catch
+  TAHpars=[.5, 1];
+  input.TAHpars=TAHpars;
+end
+
+if numel(TAHpars)==1
+  TAHpars=[TAHpars 1];
+  nput.TAHpars=TAHpars;
+end
+
+try
+  maxSynVal=input.maxSynVal;
+catch
+  maxSynVal=max(max(S(EI,EI)));
+  input.maxSynVal=maxSynVal;
+end
+  
 try
   delay=input.delay; % in ms;
 catch
@@ -165,6 +184,7 @@ end
 if delay
   delayFlag=1;
 end
+
 
 %%
 
@@ -274,6 +294,7 @@ for n=2:numIt
   if delayFlag
     firSelHist(mod(n,delay/dt+1)+1,:)=firSel;
   end
+  
   if any(firSel)
     
     % reset membrane potential
@@ -302,17 +323,12 @@ for n=2:numIt
           X_list(:,:,n)=X(:,:);
         end
         
-        dsyn=STDP(t,S,X(:,:),A_STDP,firSel,S>0 & E_syn);
-        S=S+dsyn;
+        dsyn=TAH(t,S/maxSynVal,X(:,:),A_STDP,TAHpars,firSel,S>0 & E_syn);
+        S=S+dsyn*maxSynVal; % synapses are bounded/normalized by maxSynVal
         deltaS(n,1)=sum(dsyn(:));
         deltaS(n,2)=sum(abs(dsyn(:)));
-        % hard bound to be larger than 0
-        S(S(:)<0)=0;
-        % mulitplicative normalization
-        sel=sum(S(EI,EI),2)>Smax;
-        if any(sel)
-          S(EIind(sel),EI)=bsxfun(@times,S(EIind(sel),EI),1./sum(S(EIind(sel),EI),2))*Smax;
-        end
+%         % hard bound to be larger than 0
+%         S(S(:)<0)=0;        
       end
     end
 
