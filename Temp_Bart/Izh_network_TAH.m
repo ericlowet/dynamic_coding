@@ -183,6 +183,8 @@ end
 
 if delay
   delayFlag=1;
+else
+  delayFlag=0;
 end
 
 
@@ -324,7 +326,9 @@ for n=2:numIt
         end
         
         dsyn=TAH(t,S/maxSynVal,X(:,:),A_STDP,TAHpars,firSel,S>0 & E_syn);
-        S=S+dsyn*maxSynVal; % synapses are bounded/normalized by maxSynVal
+        dsyn=dsyn*maxSynVal; % synapses are bounded/normalized by maxSynVal
+        dsyn(dsyn<0)=max(dsyn(dsyn<0),-S(dsyn<0)); % clip, because negative values will yield synapses with imaginary components
+        S=S+dsyn;
         deltaS(n,1)=sum(dsyn(:));
         deltaS(n,2)=sum(abs(dsyn(:)));
 %         % hard bound to be larger than 0
