@@ -317,7 +317,16 @@ for n=2:numIt
     
     if STDPflag
       if any(firSel)% update synapses using STDP
+        dsyn=TAH(t,S/maxSynVal,X(:,:),A_STDP,TAHpars,firSel,S>0 & E_syn);
+        dsyn=dsyn*maxSynVal; % synapses are bounded/normalized by maxSynVal
+        dsyn(dsyn<0)=max(dsyn(dsyn<0),-S(dsyn<0)); % clip, because negative values will yield synapses with imaginary components
+        S=S+dsyn;
+        deltaS(n,1)=sum(dsyn(:));
+        deltaS(n,2)=sum(abs(dsyn(:)));
+        
         % update STDP memory (Only E-E and E-I interactions)
+        % but only after doing STDP, cells firing at exactly the same time
+        % have no influence        
 %         X(:,firSel)=bsxfun(@plus,X(:,firSel),A_STDP*0+1);
         X(:,firSel)=1;
         
@@ -325,14 +334,6 @@ for n=2:numIt
           X_list(:,:,n)=X(:,:);
         end
         
-        dsyn=TAH(t,S/maxSynVal,X(:,:),A_STDP,TAHpars,firSel,S>0 & E_syn);
-        dsyn=dsyn*maxSynVal; % synapses are bounded/normalized by maxSynVal
-        dsyn(dsyn<0)=max(dsyn(dsyn<0),-S(dsyn<0)); % clip, because negative values will yield synapses with imaginary components
-        S=S+dsyn;
-        deltaS(n,1)=sum(dsyn(:));
-        deltaS(n,2)=sum(abs(dsyn(:)));
-%         % hard bound to be larger than 0
-%         S(S(:)<0)=0;        
       end
     end
 

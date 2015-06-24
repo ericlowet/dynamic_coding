@@ -294,14 +294,7 @@ for n=2:numIt
     
     if STDPflag
       if any(firSel)% update synapses using STDP
-        % update STDP memory (Only E-E and E-I interactions)
-%         X(:,firSel)=bsxfun(@plus,X(:,firSel),A_STDP*0+1);
-        X(:,firSel)=1;
-        
-        if fullOutput
-          X_list(:,:,n)=X(:,:);
-        end
-        
+              
         dsyn=STDP(t,S,X(:,:),A_STDP,firSel,S>0 & E_syn);
         S=S+dsyn;
         deltaS(n,1)=sum(dsyn(:));
@@ -313,6 +306,17 @@ for n=2:numIt
         if any(sel)
           S(EIind(sel),EI)=bsxfun(@times,S(EIind(sel),EI),1./sum(S(EIind(sel),EI),2))*Smax;
         end
+        
+        % update STDP memory 
+        % but only after doing STDP, cells firing at exactly the same time
+        % have no influence
+        %         X(:,firSel)=bsxfun(@plus,X(:,firSel),A_STDP*0+1);
+        X(:,firSel)=1;
+        
+        if fullOutput
+          X_list(:,:,n)=X(:,:);
+        end
+        
       end
     end
 
