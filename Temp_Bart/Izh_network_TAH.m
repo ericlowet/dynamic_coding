@@ -22,6 +22,11 @@ function [output,spikes]=Izh_network_TAH(input)
 % verbose = flag to print progress (iteration number) to screen (default
 % =1)
 % 
+% Dynamics for STDP (TAH; temporally asymmetric hebbian) , using STDP memory trace X
+% from : 
+% Gütig R, Aharonov R, Rotter S, Sompolinsky H. 
+% Learning input correlations through nonlinear temporally asymmetric Hebbian plasticity. 
+% J Neurosci. 2003;23: 3697–3714. 
 
 %% Initializing variables
 tic
@@ -30,8 +35,6 @@ dt=input.dt;
 
 t=tLim(1):dt:tLim(2);
 
-%save input structure
-output.input=input;
 
 try
   I=input.I;
@@ -66,6 +69,7 @@ try
 catch
   V_init=ones(2,numNeur);
   V_init=bsxfun(@times,V_init,[-70;0]); % -70 mV
+  input.V_init=V_init;
 end
 
 V=V_init;
@@ -81,12 +85,13 @@ try
 catch
   warning('Character of neurons undefined (input.EI); assuming all neurons are excitatory')
   EI=true(size(S,1));
+  input.EI=EI;
 end
 
 try
   STDPflag=input.STDP;
 catch
-  STDPflag=true;
+  STDPflag=false;
 end
 
 
@@ -94,12 +99,14 @@ if STDPflag
   try
     tau_STDP=input.tau_STDP(:);
   catch    
-    tau_STDP=[20; 30];
+    tau_STDP=[20; 20];
+    input.tau_STDP=tau_STDP;
   end
   try
     A_STDP=input.A_STDP(:);
   catch
     A_STDP=[.001; .001];
+    input.A_STDP=A_STDP;
   end
   
   E_syn=false(size(S));
@@ -119,6 +126,15 @@ try
   if ~isempty(outpFname)
     outpFlag=true;
     
+    [dirN,fileN,ext]=fileparts(outpFname);
+    if ~isempty(dirN) && ~exist(dirN,'file')
+      mkdir(dirN)
+    end
+    if isempty(ext)
+      % force .mat extension
+      outpFname=fullfile(dirN,fileN,'.mat');
+    end
+    
     if verboseFlag && exist([outpFname],'file')
       warning([outpFname ' already exists...'])
       reply = input('Do you want to overwrite? Y/N [N]: ', 's');
@@ -134,6 +150,9 @@ try
       end
       
     end
+    
+    
+    
   else
     outpFlag=false;
   end
@@ -165,7 +184,7 @@ end
 
 if numel(TAHpars)==1
   TAHpars=[TAHpars 1];
-  nput.TAHpars=TAHpars;
+  input.TAHpars=TAHpars;
 end
 
 try
@@ -179,6 +198,7 @@ try
   delay=input.delay; % in ms;
 catch
   delay=0;
+  input.delay=0;
 end
 
 if delay
@@ -186,6 +206,9 @@ if delay
 else
   delayFlag=0;
 end
+
+%save input structure
+output.input=input;
 
 
 %%
@@ -348,12 +371,13 @@ for n=2:numIt
     
   end
   
-  % save every 250 iterations (but skip the last one, if simulation is
+  % save every couple of iterations (but skip the last one, if simulation is
   % almost done)
   if outpFlag && mod(n,saveInterval)==0 && (numIt-n)>saveInterval/2
     output.S=S;
     output.spiks=spiks(:,1:n);
     output.t=t(1:n);
+    output.simulationTime=toc;
     
     if STDPflag
       output.deltaS=deltaS(1:n,:);
@@ -371,9 +395,9 @@ for n=2:numIt
       output.I_tot=I_inp(1:n,:);
       output.V=V_list(:,:,1:n);
     end
-    save(outpFname,'output')
+    save(outpFname,'output','-v7.3')
     try
-      save(outpFname,'spikes','-append')
+      save(outpFname,'spikes','-append','-v7.3')
     end
   end
   
@@ -407,8 +431,8 @@ if fullOutput
   output.V=V_list;
 end
 if outpFlag
-  save(outpFname,'output')
+  save(outpFname,'output','-v7.3')
   try
-    save(outpFname,'spikes','-append')
+    save(outpFname,'spikes','-append','-v7.3')
   end
 end

@@ -17,14 +17,6 @@ A_neg=A(2);
 
 dS = zeros(size(S));
 
-% for pre=find(firSel)
-%   for post=find(firSel)
-%     if nargin<6 || S_struct(post,pre)
-%       dS(post,pre)=firSel(post)*A_pos*X(1,pre)-firSel(pre)*A_neg*X(2,post);
-%     end
-%   end
-% end
-
 for firNeur=find(firSel)
   if nargin>5
     pre=S_struct(firNeur,:);
@@ -33,6 +25,10 @@ for firNeur=find(firSel)
     pre=true(1,size(S,2));
     post=false(size(S,1),1);
   end
-  dS(firNeur,pre)=A_pos*X(1,pre).*(1-S(firNeur,pre)).^pars(1);
-  dS(post,firNeur)=-A_neg*X(2,post).*S(post,firNeur).'.^pars(1)*pars(2);
+  if any(pre)
+    dS(firNeur,pre)=A_pos*X(1,pre).*(1-S(firNeur,pre)).^pars(1);
+  end
+  if any(post)
+    dS(post,firNeur)=-A_neg*X(2,post).*S(post,firNeur).'.^pars(1)*pars(2);
+  end
 end
