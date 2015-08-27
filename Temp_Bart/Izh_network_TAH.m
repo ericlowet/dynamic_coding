@@ -61,7 +61,7 @@ try
   c=input.c;
   d=input.d;
 catch
-  error('input does not contain all paremeters for neurons (input.a-d)')
+  error('input does not contain all parameters for neurons (input.a-d)')
 end
 
 try

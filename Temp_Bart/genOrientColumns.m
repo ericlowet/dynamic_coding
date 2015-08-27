@@ -1,5 +1,5 @@
-function [ conMat, cfg, conMatSep] = genOrientColumns(cfg)
-% [ connMat, connMat_sep, R_e, R_i ] = genOrientColumns(cfg)
+function [ conMat, idx, cfg, conMatSep] = genOrientColumns(cfg)
+% [ conMat, idx, cfg, conMatSep] = genOrientColumns(cfg)
 % 
 % 
 % cfg contains the fields used:
@@ -11,7 +11,8 @@ function [ conMat, cfg, conMatSep] = genOrientColumns(cfg)
 %           (default = 4)      
 % 
 % .numE:    Number of excitatory neurons in every orientaiton column.
-%           Number of inhibitory neurons will be 25% of this
+%           Number of inhibitory neurons will be 25% of this. Both will be
+%           rounded up to match .numOrient
 %           (default = 40)
 % 
 % Connections WITHIN hypercolumns
@@ -56,9 +57,10 @@ end
 
 if isfield(cfg,'numE')
   numE=cfg.numE;
+  numE=ceil(numE/numOrient)*numE;
+  cfg.numE=numE;
 else
-  numE=40;
-  
+  numE=40;  
   cfg.numE=numE;
 end
 
@@ -72,7 +74,7 @@ end
 if isfield(cfg,'strConIntra')
   strConIntra=cfg.strConIntra;
 else
-  strConIntra=[1e-2 5e-3 5e-2 5e-2];
+  strConIntra=[5e-3 1e-3 1e-2 1e-2];
   cfg.strConIntra=strConIntra;
 end
 
@@ -86,7 +88,7 @@ end
 if isfield(cfg,'strConInter')
   strConInter=cfg.strConInter;
 else
-  strConInter=[1e-2 5e-3 5e-2 5e-2];
+  strConInter=[5e-3 1e-3 1e-2 1e-2];
   cfg.strConInter=strConInter;
 end
 
@@ -109,20 +111,20 @@ end
 
 %% setting up preferred orientations and spatial locations
 numI=ceil(.25*numE);
-x=[1:gridSz];%-(gridSz+1)/2
-[X,Y]=meshgrid(x);
-R=[X(:),Y(:)];
+numE_orient=numE/numOrient;
+numI_orient=numI/numOrient;
+
+numI_orient=ceil(numI_orient);
+numI=numI_orient*numOrient;
+
+numHypColmn=gridSz^2;
 
 theta=linspace(0,pi,numOrient+1);
 theta=theta(1:end-1);
 
 conMatSep=cell(gridSz,gridSz);
 
-numE_orient=numE/numOrient;
-numI_orient=numI/numOrient;
 
-numI_orient=ceil(numI_orient);
-numI=numI_orient*numOrient;
 
 
 %% connection WITHIN hyper column
@@ -146,7 +148,7 @@ pdfCon_theta=p_theta(th_idx,th_idx);
 pdfCon_theta=bsxfun(@rdivide,pdfCon_theta,sum(pdfCon_theta,2)); % normalize for /incoming/ connecitons
   
 
-for hypColIdx=1:gridSz^2
+for hypColIdx=1:numHypColmn
   % EE
   conEE=strConIntra(1)*sampleCon(pdfCon_theta,numConIntra(1));
   
@@ -169,16 +171,15 @@ end
 % all connections based on both orientation and distance
 
 gridLoc=meshgrid([1:gridSz]/(gridSz+1));
-distx=(gridSz+1)*0.5/pi*angle(bsxfun(@times,exp(2i*gridLoc(:)*pi),exp(2i*gridLoc(:)*pi)'));
+X=gridLoc(:);
+distX=(gridSz+1)*0.5/pi*angle(bsxfun(@times,exp(2i*X*pi),exp(2i*X*pi)'));
 gridLoc=gridLoc.';
-disty=(gridSz+1)*0.5/pi*angle(bsxfun(@times,exp(2i*gridLoc(:)*pi),exp(2i*gridLoc(:)*pi)'));
-dist=sqrt(distx.^2+disty.^2');
-nN=[numE, numI, numE, numI];
-nNSnd=[numE, numE, numI, numI];
+Y=gridLoc(:);
+distY=(gridSz+1)*0.5/pi*angle(bsxfun(@times,exp(2i*Y*pi),exp(2i*Y*pi)'));
+dist=sqrt(distX.^2+distY.^2');
+nNeurRecv=[numE, numI, numE, numI];
+nNeurSnd=[numE, numE, numI, numI];
 
-
-gridLocIdx=repmat(1:gridSz,gridSz,1);
-gridLocIdx=gridLocIdx(:);
 p_spat=cell(numel(sig_dist),1);
 p_th=p_spat;
 for n=1:numel(sig_dist)
@@ -186,9 +187,9 @@ for n=1:numel(sig_dist)
   p_spat{n}(logical(eye(gridSz)))=0;
   p_spat{n}(isnan(p_spat{n}(:)))=0;
   
-  th_idx1=repmat(1:numOrient,nN(n)/numOrient,1);
+  th_idx1=repmat(1:numOrient,nNeurRecv(n)/numOrient,1);
   th_idx1=th_idx1(:);
-  th_idx2=repmat(1:numOrient,nNSnd(n)/numOrient,1);
+  th_idx2=repmat(1:numOrient,nNeurSnd(n)/numOrient,1);
   th_idx2=th_idx2(:);
   p_th{n}=p_theta(th_idx1,th_idx2);
   p_th{n}=bsxfun(@rdivide,p_th{n},sum(p_th{n},2));
@@ -197,18 +198,18 @@ end
 
 
 
-for hypColIdx1=1:gridSz^2
+for hypColIdx1=1:numHypColmn
   numInterCon=cell(4,1);
   for n=1:numel(p_spat)    
-    p_colmn=p_spat{n}((hypColIdx1),1:gridSz^2);
+    p_colmn=p_spat{n}((hypColIdx1),1:numHypColmn);
     if sum(p_colmn(1,:))>0
       p_colmn=p_colmn/sum(p_colmn(1,:));
       numInterCon{n}=full(sampleCon(p_colmn,numConInter(n)));
     else
-      numInterCon{n}=zeros(1,gridSz^2);
+      numInterCon{n}=zeros(1,numHypColmn);
     end    
   end  
-  for hypColIdx2=1:gridSz^2
+  for hypColIdx2=1:numHypColmn
     if hypColIdx2~=hypColIdx1
       conDum=cell(4,1);
       for n=1:numel(numInterCon)
@@ -219,11 +220,29 @@ for hypColIdx1=1:gridSz^2
   end  
 end
 
-conMat=cell(gridSz^2,1);
+conMat=cell(numHypColmn,1);
 for n=1:numel(conMat)
   conMat{n}=cat(2,conMatSep{n,:});
 end
 conMat=cat(1,conMat{:});
+
+%% output indices (i.e. neuron locations and orientation preference)
+th_idxE=repmat(1:numOrient,numE/numOrient,1);
+th_idxE=th_idxE(:);
+th_idxI=repmat(1:numOrient,numI/numOrient,1);
+th_idxI=th_idxI(:);
+
+X=repmat(1:gridSz,(numE+numI)*gridSz,1);
+Y=repmat(1:gridSz,(numE+numI),gridSz);
+
+EI=[ones(numE,1); zeros(numI,1)];
+
+idx.X=X(:);
+idx.Y=Y(:);
+idx.theta=repmat([th_idxE; th_idxI],numHypColmn,1);
+idx.EI=logical(repmat(EI,numHypColmn,1));
+
+
 end
 
 function [connMat]=sampleCon(pdfCon,nCon)
