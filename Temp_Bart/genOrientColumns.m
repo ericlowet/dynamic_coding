@@ -20,7 +20,7 @@ function [ conMat, idx, cfg, conMatSep] = genOrientColumns(cfg)
 %               neuron 
 % 
 % .strConIntra: [sEE sEI sIE sII] Strength of every incoming connection.
-%               (default = [1e-2 5e-3 5e-2 5e-2])
+%               (default = [5e-3 1e-2 4e-2 4e-2])
 % 
 % .sig_theta:   standard deviation in radians of gaussian that determines
 %               the probability for two neurons with preferred orientation
@@ -33,7 +33,7 @@ function [ conMat, idx, cfg, conMatSep] = genOrientColumns(cfg)
 %               neuron 
 % 
 % .strConInter: [sEE sEI sIE sII] Strength of every incoming connection.
-%               (default = [1e-2 5e-3 5e-2 5e-2])
+%               (default = [5e-3 1e-2 4e-2 4e-2])
 % 
 % .sig_dist:    [dEE dEI dIE dII] standard deviation in grid units of
 %               gaussian that determines probability of connections between
@@ -57,38 +57,41 @@ end
 
 if isfield(cfg,'numE')
   numE=cfg.numE;
-  numE=ceil(numE/numOrient)*numE;
+  numE=ceil(numE/numOrient)*numOrient;
   cfg.numE=numE;
 else
   numE=40;  
+  numE=ceil(numE/numOrient)*numOrient;
   cfg.numE=numE;
 end
 
 if isfield(cfg,'numConIntra')
   numConIntra=cfg.numConIntra;
 else
-  numConIntra=[.5 .25 .1 .1].*numE;
+  numConIntra=ceil([.5 .5 .25 .25].*numE);
   cfg.numConIntra=numConIntra;
 end
 
 if isfield(cfg,'strConIntra')
   strConIntra=cfg.strConIntra;
 else
-  strConIntra=[5e-3 1e-3 1e-2 1e-2];
+%   [sEE sEI sIE sII]
+  strConIntra=[5e-3 1e-2 4e-2 4e-2];
   cfg.strConIntra=strConIntra;
 end
 
 if isfield(cfg,'numConInter')
   numConInter=cfg.numConInter;
 else
-  numConInter=[.5 .25 0 0].*numE*.5;
+  numConInter=ceil([.5 .5 0 0].*numE*.5);
   cfg.numConInter=numConInter;
 end
 
 if isfield(cfg,'strConInter')
   strConInter=cfg.strConInter;
 else
-  strConInter=[5e-3 1e-3 1e-2 1e-2];
+%   [sEE sEI sIE sII]
+  strConInter=[5e-3 1e-2 4e-2 4e-2];
   cfg.strConInter=strConInter;
 end
 
@@ -116,6 +119,7 @@ numI_orient=numI/numOrient;
 
 numI_orient=ceil(numI_orient);
 numI=numI_orient*numOrient;
+cfg.numI=numI;
 
 numHypColmn=gridSz^2;
 
@@ -125,50 +129,19 @@ theta=theta(1:end-1);
 conMatSep=cell(gridSz,gridSz);
 
 
-
-
-%% connection WITHIN hyper column
-% E -> E based on orientation
-% E -> I randomly
-% I -> E,I randomly
-%
-% numConIntra:  [nEE nEI nIE nII]
+nNeurRecv=[numE, numI, numE, numI];
+nNeurSnd=[numE, numE, numI, numI];
 
 
 
 
+%% connection probabilities
 
 
-th_idx=repmat(1:numOrient,numE_orient,1);
-th_idx=th_idx(:);
+
 
 dist=0.5*angle(bsxfun(@times,exp(2i*theta),exp(2i*theta)'));
 p_theta=exp(-0.5*dist.^2/sig_theta);
-pdfCon_theta=p_theta(th_idx,th_idx);
-pdfCon_theta=bsxfun(@rdivide,pdfCon_theta,sum(pdfCon_theta,2)); % normalize for /incoming/ connecitons
-  
-
-for hypColIdx=1:numHypColmn
-  % EE
-  conEE=strConIntra(1)*sampleCon(pdfCon_theta,numConIntra(1));
-  
-  % EI
-  pdfCon=ones(numI,numE)/numE;
-  conEI=strConIntra(2)*sampleCon(pdfCon,numConIntra(2));
-  
-  % IE
-  pdfCon=ones(numE,numI)/numI;
-  conIE=strConIntra(3)*sampleCon(pdfCon,numConIntra(3));
-  
-  % IE
-  pdfCon=ones(numI,numI)/numI;
-  conII=strConIntra(4)*sampleCon(pdfCon,numConIntra(4));
-  
-  conMatSep{hypColIdx,hypColIdx}=[conEE conIE; conEI conII];
-end
-
-%% Connections BETWEEN hypercolumns
-% all connections based on both orientation and distance
 
 gridLoc=meshgrid([1:gridSz]/(gridSz+1));
 X=gridLoc(:);
@@ -177,8 +150,7 @@ gridLoc=gridLoc.';
 Y=gridLoc(:);
 distY=(gridSz+1)*0.5/pi*angle(bsxfun(@times,exp(2i*Y*pi),exp(2i*Y*pi)'));
 dist=sqrt(distX.^2+distY.^2');
-nNeurRecv=[numE, numI, numE, numI];
-nNeurSnd=[numE, numE, numI, numI];
+
 
 p_spat=cell(numel(sig_dist),1);
 p_th=p_spat;
@@ -195,7 +167,23 @@ for n=1:numel(sig_dist)
   p_th{n}=bsxfun(@rdivide,p_th{n},sum(p_th{n},2));
 end
 
+%% connection WITHIN hyper column
+% all connections based on orientation; not location
+%
+% numConIntra:  [nEE nEI nIE nII]
 
+for hypColIdx=1:numHypColmn
+  conDum=cell(4,1);
+  for n=1:numel(p_th)
+  % EE
+  conDum{n}=strConIntra(n)*sampleCon(p_th{n},numConIntra(n));
+  end
+  
+  conMatSep{hypColIdx,hypColIdx}=[conDum{1} conDum{3}; conDum{2} conDum{4}];
+end
+
+%% Connections BETWEEN hypercolumns
+% all connections based on both orientation and distance
 
 
 for hypColIdx1=1:numHypColmn
@@ -220,6 +208,7 @@ for hypColIdx1=1:numHypColmn
   end  
 end
 
+%%
 conMat=cell(numHypColmn,1);
 for n=1:numel(conMat)
   conMat{n}=cat(2,conMatSep{n,:});
