@@ -132,6 +132,8 @@ conMatSep=cell(gridSz,gridSz);
 nNeurRecv=[numE, numI, numE, numI];
 nNeurSnd=[numE, numE, numI, numI];
 
+EIcon=[0 1 0 0];
+
 
 
 
@@ -175,8 +177,15 @@ end
 for hypColIdx=1:numHypColmn
   conDum=cell(4,1);
   for n=1:numel(p_th)
-  % EE
-  conDum{n}=strConIntra(n)*sampleCon(p_th{n},numConIntra(n));
+    if EIcon(n)
+      % inhibitory connections between columns should target competing
+      % orientations
+      pdum=1./p_th{n};
+      pdum=bsxfun(@rdivide,pdum,sum(pdum,2));
+      conDum{n}=strConIntra(n)*sampleCon(pdum,numConIntra(n));
+    else
+      conDum{n}=strConIntra(n)*sampleCon(p_th{n},numConIntra(n));
+    end
   end
   
   conMatSep{hypColIdx,hypColIdx}=[conDum{1} conDum{3}; conDum{2} conDum{4}];
@@ -201,7 +210,15 @@ for hypColIdx1=1:numHypColmn
     if hypColIdx2~=hypColIdx1
       conDum=cell(4,1);
       for n=1:numel(numInterCon)
-        conDum{n}=strConInter(n)*sampleCon(p_th{n},numInterCon{n}(hypColIdx2));
+        if EIcon(n)
+          % inhibitory connections between columns should target competing
+          % orientations
+          pdum=1./p_th{n};
+          pdum=bsxfun(@rdivide,pdum,sum(pdum,2));
+          conDum{n}=strConInter(n)*sampleCon(pdum,numInterCon{n}(hypColIdx2));
+        else
+          conDum{n}=strConInter(n)*sampleCon(p_th{n},numInterCon{n}(hypColIdx2));
+        end
       end
       conMatSep{hypColIdx1,hypColIdx2}=[conDum{1} conDum{3}; conDum{2} conDum{4}];
     end
