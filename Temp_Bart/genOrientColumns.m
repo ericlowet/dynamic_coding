@@ -22,11 +22,12 @@ function [ conMat, idx, cfg, conMatSep] = genOrientColumns(cfg)
 % .strConIntra: [sEE sEI sIE sII] Strength of every incoming connection.
 %               (default = [5e-3 1e-2 4e-2 4e-2])
 % 
-% .sig_theta:   standard deviation in radians of gaussian that determines
+% .sig_theta:   [E I] standard deviation in radians of gaussian that determines
 %               the probability for two neurons with preferred orientation
-%               difference to be connected.
+%               difference to be connected. Separated for E-axons and
+%               I-axons.
 %               (note: also used for connections between hyper columns)
-%               (default =  pi/8)
+%               (default =  [pi/10 pi/5])
 % 
 % Connections BETWEEN hypercolumns
 % .numConInter: [nEE nEI nIE nII] Number of incoming connections on every
@@ -56,13 +57,9 @@ else
 end
 
 if isfield(cfg,'numE')
-  numE=cfg.numE;
-  numE=ceil(numE/numOrient)*numOrient;
-  cfg.numE=numE;
+  numE=cfg.numE;  
 else
-  numE=40;  
-  numE=ceil(numE/numOrient)*numOrient;
-  cfg.numE=numE;
+  numE=40;
 end
 
 if isfield(cfg,'numConIntra')
@@ -97,8 +94,16 @@ end
 
 if isfield(cfg,'sig_theta')
   sig_theta=cfg.sig_theta;
+  switch numel(sig_theta)
+    case 1
+      sig_theta=[sig_theta 2*sig_theta];
+    case 0
+      sig_theta=[pi/10 pi/5];
+    otherwise
+      error('sig_theta contains too many elements. Only two are required')
+  end
 else
-  sig_theta=pi/8;
+  sig_theta=[pi/10 pi/5];
   cfg.sig_theta=sig_theta;
 end
 
@@ -114,11 +119,7 @@ end
 
 %% setting up preferred orientations and spatial locations
 numI=ceil(.25*numE);
-numE_orient=numE/numOrient;
-numI_orient=numI/numOrient;
 
-numI_orient=ceil(numI_orient);
-numI=numI_orient*numOrient;
 cfg.numI=numI;
 
 numHypColmn=gridSz^2;
@@ -132,18 +133,13 @@ conMatSep=cell(gridSz,gridSz);
 nNeurRecv=[numE, numI, numE, numI];
 nNeurSnd=[numE, numE, numI, numI];
 
-EIcon=[0 1 0 0];
-
-
-
 
 %% connection probabilities
 
-
-
-
 dist=0.5*angle(bsxfun(@times,exp(2i*theta),exp(2i*theta)'));
-p_theta=exp(-0.5*dist.^2/sig_theta);
+p_theta=cell(4,1);
+p_theta([1, 2])=deal({exp(-0.5*dist.^2/sig_theta(1))});
+p_theta([3, 4])=deal({exp(-0.5*dist.^2/sig_theta(2))});
 
 gridLoc=meshgrid([1:gridSz]/(gridSz+1));
 X=gridLoc(:);
@@ -153,7 +149,6 @@ Y=gridLoc(:);
 distY=(gridSz+1)*0.5/pi*angle(bsxfun(@times,exp(2i*Y*pi),exp(2i*Y*pi)'));
 dist=sqrt(distX.^2+distY.^2');
 
-
 p_spat=cell(numel(sig_dist),1);
 p_th=p_spat;
 for n=1:numel(sig_dist)
@@ -161,11 +156,11 @@ for n=1:numel(sig_dist)
   p_spat{n}(logical(eye(gridSz)))=0;
   p_spat{n}(isnan(p_spat{n}(:)))=0;
   
-  th_idx1=repmat(1:numOrient,nNeurRecv(n)/numOrient,1);
+  th_idx1=repmat(1:numOrient,nNeurRecv(n),1);
   th_idx1=th_idx1(:);
-  th_idx2=repmat(1:numOrient,nNeurSnd(n)/numOrient,1);
+  th_idx2=repmat(1:numOrient,nNeurSnd(n),1);
   th_idx2=th_idx2(:);
-  p_th{n}=p_theta(th_idx1,th_idx2);
+  p_th{n}=p_theta{n}(th_idx1,th_idx2);
   p_th{n}=bsxfun(@rdivide,p_th{n},sum(p_th{n},2));
 end
 
@@ -177,15 +172,7 @@ end
 for hypColIdx=1:numHypColmn
   conDum=cell(4,1);
   for n=1:numel(p_th)
-    if EIcon(n)
-      % inhibitory connections between columns should target competing
-      % orientations
-      pdum=1./p_th{n};
-      pdum=bsxfun(@rdivide,pdum,sum(pdum,2));
-      conDum{n}=strConIntra(n)*sampleCon(pdum,numConIntra(n));
-    else
-      conDum{n}=strConIntra(n)*sampleCon(p_th{n},numConIntra(n));
-    end
+    conDum{n}=strConIntra(n)*sampleCon(p_th{n},numConIntra(n));
   end
   
   conMatSep{hypColIdx,hypColIdx}=[conDum{1} conDum{3}; conDum{2} conDum{4}];
@@ -210,19 +197,11 @@ for hypColIdx1=1:numHypColmn
     if hypColIdx2~=hypColIdx1
       conDum=cell(4,1);
       for n=1:numel(numInterCon)
-        if EIcon(n)
-          % inhibitory connections between columns should target competing
-          % orientations
-          pdum=1./p_th{n};
-          pdum=bsxfun(@rdivide,pdum,sum(pdum,2));
-          conDum{n}=strConInter(n)*sampleCon(pdum,numInterCon{n}(hypColIdx2));
-        else
-          conDum{n}=strConInter(n)*sampleCon(p_th{n},numInterCon{n}(hypColIdx2));
-        end
+        conDum{n}=strConInter(n)*sampleCon(p_th{n},numInterCon{n}(hypColIdx2));
       end
       conMatSep{hypColIdx1,hypColIdx2}=[conDum{1} conDum{3}; conDum{2} conDum{4}];
     end
-  end  
+  end
 end
 
 %%
@@ -233,15 +212,15 @@ end
 conMat=cat(1,conMat{:});
 
 %% output indices (i.e. neuron locations and orientation preference)
-th_idxE=repmat(1:numOrient,numE/numOrient,1);
+th_idxE=repmat(1:numOrient,numE,1);
 th_idxE=th_idxE(:);
-th_idxI=repmat(1:numOrient,numI/numOrient,1);
+th_idxI=repmat(1:numOrient,numI,1);
 th_idxI=th_idxI(:);
 
-X=repmat(1:gridSz,(numE+numI)*gridSz,1);
-Y=repmat(1:gridSz,(numE+numI),gridSz);
+X=repmat(1:gridSz,(numE+numI)*numOrient*gridSz,1);
+Y=repmat(1:gridSz,(numE+numI)*numOrient,gridSz);
 
-EI=[ones(numE,1); zeros(numI,1)];
+EI=[ones(numE*numOrient,1); zeros(numI*numOrient,1)];
 
 idx.X=X(:);
 idx.Y=Y(:);
