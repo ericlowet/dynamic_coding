@@ -1,12 +1,13 @@
 cfg=[];
 cfg.numOrient=8;
-cfg.gridSz=5;
+cfg.gridSz=3;
 numE=40;
 cfg.numE=numE;
 % [nEE nEI nIE nII]
-cfg.numConIntra=[30 50 30 20];
-cfg.numConInter=[40 00 0 0];
+cfg.numConIntra=[20 30 20 20];
+cfg.numConInter=[80 00 0 0];
 cfg.sig_dist=[1 2 .5 0];
+cfg.sig_theta=[2 2 .05 .05]*pi;
 cfg.strConIntra=[.1e-2 1e-2 5e-2 5e-2];
 cfg.strConInter=[.1e-2 1e-2 5e-2 5e-2];
 
@@ -17,10 +18,13 @@ cfg.strConInter=[.1e-2 1e-2 5e-2 5e-2];
 figure(8)
 subaxis(1,3,1)
 imagesc(conMat>0)
+title('complete S')
 subaxis(1,3,2)
 imagesc(conMatSep{1,1}>0)
+title('S_{intra}')
 subaxis(1,3,3)
 imagesc(conMatSep{1,2}>0)
+title('S_{inter}')
 %%
 X=idx.X;
 Y=idx.Y;
@@ -30,29 +34,38 @@ numNeur=numel(X);
 numOrient=cfg.numOrient;
 gridSz=cfg.gridSz;
 
-stimLen=20;
+stimLen=10;
 simLen=2e3;
 
-phi=(cos([0:stimLen:simLen-stimLen]/1e3*2*pi*.5)+1)*.5*1*pi+.0*pi;
+
+phi=ceil([0:stimLen:simLen-stimLen]/1e3*2.5)*pi/4;
+% phi=(cos([0:stimLen:simLen-stimLen]/1e3*2*pi*6)+1)*.5*1*pi+.0*pi;
 % phi=floor(phi/pi*2);
 
 I=zeros(numNeur,numel(phi));
 I(EI,:)=1;
 
+tbins=0:stimLen:stimLen*size(I,2);
 
 
-angstd=sawtooth([0:stimLen:simLen-stimLen]/1e3*2*pi*2.5,1)+1;
-angstd=angstd*pi/4;
+angstd=circshift(sawtooth([0:stimLen:simLen-stimLen]/1e3*2*pi*2.5,1)+1,[0 1]);
+angstd=angstd*pi/24e3;
+sMod=[.25 .75];
 
 
+phiOffset=(rand(gridSz)-0)*pi/2;
+phiOffset=phiOffset-diag(diag(phiOffset));
 for n=1:numel(phi)
   totStr=(rand(gridSz)-.5)*.25+2;
-  MVL=rand(gridSz)*.5+.25;
-  ang=mod(numOrient/(2*pi)*(6*pi+angle(exp(2i*phi(n))*exp(1i*angstd(n)*randn(gridSz))))-1,numOrient)+1;
+  MVL=rand(gridSz)*.5+.25+(eye(gridSz)-.5)*.2;
+  
   
   for x=1:gridSz
     selX=X==x;
     for y=1:gridSz
+      phiDum=phi(n)+phiOffset(x,y)+randn*pi/16;
+      ang=mod(numOrient/(2*pi)*(6*pi+angle(exp(2i*phiDum*exp(1i*angstd(n)*randn(gridSz)))))-1,numOrient)+1;
+      
       selY=Y==y;
       selXY=selX & selY & EI;
       
@@ -78,7 +91,7 @@ end
 
 I=I*2+(I>0)*3;
 
-strMod=0.3*(1-angstd/max(angstd(:)))+.7;
+strMod=sMod(1)*(1-angstd/max(angstd(:)))+sMod(2);
 I=bsxfun(@times,I,strMod);
 
 snr=1;
@@ -93,7 +106,7 @@ subaxis(2,2,3)
 imagesc(tbins(1:end-1),1,noise); colorbar
 title('noise')
 subaxis(3,2,2)
-plot(tbins(1:end-1), phi)
+plot(tbins(1:end-1), mod(angle(exp(2i*phi))/2,pi))
 title('input orientation')
 subaxis(3,2,2,2)
 plot(tbins(1:end-1), angstd)
@@ -162,12 +175,14 @@ end
 
 
 
-tbins=0:stimLen:stimLen*size(I,2);
+
 tLim=minmax(tbins);
 dt=.5;
 
 input=[];
+% input.I=[tbins(:) [I'; ]];
 input.I=[tbins(:) [I'; I(:,1)']];
+% input.noise = [tbins(:) [noise'; ]];
 input.noise = [tbins(:) [noise'; noise(:,1)']];
 
 input.EI=EI;
@@ -223,14 +238,17 @@ sphistkernel=sphistkernel/sum(sphistkernel);
 X=idx.X;
 Y=idx.Y;
 
-rateE=nan(gridSz,gridSz,numel(output.t));
-rateI=nan(gridSz,gridSz,numel(output.t));
+rateE=nan(gridSz,gridSz,numOrient,numel(output.t));
+rateI=nan(gridSz,gridSz,numOrient,numel(output.t));
 for x=1:gridSz
   selx=X==x;
   for y=1:gridSz
     selxy=selx & Y==y;
-    rateE(y,x,:)=sum(output.spiks(EI & selxy,:));
-    rateI(y,x,:)=sum(output.spiks(~EI & selxy,:));
+    for th=1:numOrient
+      seltot=selxy & theta==th;
+      rateE(y,x,th,:)=sum(output.spiks(EI & seltot,:));
+      rateI(y,x,th,:)=sum(output.spiks(~EI & seltot,:));
+    end
   end
 end
 
@@ -238,12 +256,12 @@ figure(2)
 set(2,'position',[100 100 1200 800]) 
 clf
 subaxis(5,1,1)
-imagesc(output.t,1,conv2(reshape(rateE,gridSz^2,[])',sphistkernel(:),'same').')
+imagesc(output.t,1,conv2(reshape(squeeze(sum(rateE,3)),gridSz^2,[])',sphistkernel(:),'same').')
 vline(stimOnsets)
 ylabel('hypercolumn #')
 
 subaxis(5,1,2)
-imagesc(output.t,1,conv2(reshape(rateI,gridSz^2,[])',sphistkernel(:),'same').')
+imagesc(output.t,1,conv2(reshape(squeeze(sum(rateI,3)),gridSz^2,[])',sphistkernel(:),'same').')
 xlabel('time (ms)')
 xlim([output.input.tLim(1) max(output.t)])
 xlim(plotLim)
@@ -258,7 +276,7 @@ vline(stimOnsets)
 
 
 % sphist=cat(1,full(sum(output.spiks(EI,:))),full(sum(output.spiks(~EI,:)))).';
-[sp,f]= bg_fftwelch(reshape(rateE,gridSz^2,[]).',1e3/dt,.5,1,1,1e3/dt);
+[sp,f]= bg_fftwelch(reshape(squeeze(sum(rateE,3)),gridSz^2,[]).',1e3/dt,.5,1,1,1e3/dt);
 subaxis(5,1,5)
 imagesc(f(f>=0),1,mean(abs(sp(f>=0,:,:)).^2,3).')
 xlim([0 100])
@@ -312,7 +330,7 @@ spiks=output.spiks(EI,:);
 theta=idx.theta;
 X=idx.X;
 Y=idx.Y;
-winLen=100/dt;
+winLen=50/dt;
 tSel=.5*winLen:10:tLim(2)/dt-.5*winLen;
 winSel=[-winLen*0.5+1:winLen*0.5];
 kernel=gaussKern(winLen/3,winLen,1)*0+1;
@@ -357,7 +375,7 @@ vline(stimOnsets)
 ylim([0 pi])
 
 subaxis(3,2,1,2)
-plot(tIntp,abs(0.5*angle(phiInt./decInt)))
+plot(tIntp,(0.5*angle(phiInt./decInt)))
 ylabel('\Delta \phi')
 vline(stimOnsets)
 
