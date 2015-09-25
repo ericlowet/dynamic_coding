@@ -22,7 +22,8 @@ function [ conMat, idx, cfg, conMatSep] = genOrientColumns(cfg)
 % .strConIntra: [sEE sEI sIE sII] Strength of every incoming connection.
 %               (default = [5e-3 1e-2 4e-2 4e-2])
 % 
-% .sig_theta:   [E I] standard deviation in radians of gaussian that determines
+% .sig_theta:   [E_intra I_intra E_inter I_inter] 
+%               standard deviation in radians of gaussian that determines
 %               the probability for two neurons with preferred orientation
 %               difference to be connected. Separated for E-axons and
 %               I-axons.
@@ -48,6 +49,15 @@ else
   gridSz=4;
   cfg.gridSz=gridSz;
 end
+
+switch numel(gridSz)
+  case 1
+    gridSz=gridSz*[1 1];
+  case 2
+  otherwise
+    error('gridSz should be a scalar or an array of 2 numbers')
+end
+  
 
 if isfield(cfg,'numOrient')
   numOrient=cfg.numOrient;
@@ -96,14 +106,14 @@ if isfield(cfg,'sig_theta')
   sig_theta=cfg.sig_theta;
   switch numel(sig_theta)
     case 1
-      sig_theta=[sig_theta 2*sig_theta];
+      sig_theta=[2*pi 2*pi sig_theta 2*sig_theta];
     case 0
-      sig_theta=[pi/10 pi/5];
-    otherwise
-      error('sig_theta contains too many elements. Only two are required')
+      sig_theta=[2*pi 2*pi pi/10 pi/5];
+%     otherwise
+%       error('sig_theta contains too many elements. Only two are required')
   end
 else
-  sig_theta=[pi/10 pi/5];
+  sig_theta=[2*pi 2*pi pi/10 pi/5];
   cfg.sig_theta=sig_theta;
 end
 
@@ -122,12 +132,12 @@ numI=ceil(.25*numE);
 
 cfg.numI=numI;
 
-numHypColmn=gridSz^2;
+numHypColmn=prod(gridSz);
 
 theta=linspace(0,pi,numOrient+1);
 theta=theta(1:end-1);
 
-conMatSep=cell(gridSz,gridSz);
+conMatSep=cell(gridSz(1),gridSz(2));
 
 
 nNeurRecv=[numE, numI, numE, numI];
@@ -136,32 +146,37 @@ nNeurSnd=[numE, numE, numI, numI];
 
 %% connection probabilities
 
-dist=0.5*angle(bsxfun(@times,exp(2i*theta),exp(2i*theta)'));
-p_theta=cell(4,1);
-p_theta([1, 2])=deal({exp(-0.5*dist.^2/sig_theta(1))});
-p_theta([3, 4])=deal({exp(-0.5*dist.^2/sig_theta(2))});
+dist=0.5*angle(bsxfun(@times,exp(2i*theta),exp(2i*(theta))'));
+p_theta_intra=cell(4,1);
+p_theta_intra([1, 2])=deal({exp(-0.5*dist.^2/sig_theta(1))});
+p_theta_intra([3, 4])=deal({exp(-0.5*dist.^2/sig_theta(2))});
+p_theta_inter=cell(4,1);
+p_theta_inter([1, 2])=deal({exp(-0.5*dist.^2/sig_theta(3))});
+p_theta_inter([3, 4])=deal({exp(-0.5*dist.^2/sig_theta(4))});
 
-gridLoc=meshgrid([1:gridSz]/(gridSz+1));
+gridLoc=meshgrid([1:gridSz(1)]/(gridSz(1)+1),[1:gridSz(2)]/(gridSz(2)+1));
 X=gridLoc(:);
-distX=(gridSz+1)*0.5/pi*angle(bsxfun(@times,exp(2i*X*pi),exp(2i*X*pi)'));
+distX=(gridSz(1)+1)*0.5/pi*angle(bsxfun(@times,exp(2i*X*pi),exp(2i*X*pi)'));
 gridLoc=gridLoc.';
 Y=gridLoc(:);
-distY=(gridSz+1)*0.5/pi*angle(bsxfun(@times,exp(2i*Y*pi),exp(2i*Y*pi)'));
+distY=(gridSz(2)+1)*0.5/pi*angle(bsxfun(@times,exp(2i*Y*pi),exp(2i*Y*pi)'));
 dist=sqrt(distX.^2+distY.^2');
 
 p_spat=cell(numel(sig_dist),1);
-p_th=p_spat;
+[p_th_intra, p_th_inter]=deal(p_spat);
 for n=1:numel(sig_dist)
   p_spat{n}=exp(-.5*dist.^2/sig_dist(n));
-  p_spat{n}(logical(eye(gridSz)))=0;
+  p_spat{n}(logical(eye(prod(gridSz))))=0;
   p_spat{n}(isnan(p_spat{n}(:)))=0;
   
   th_idx1=repmat(1:numOrient,nNeurRecv(n),1);
   th_idx1=th_idx1(:);
   th_idx2=repmat(1:numOrient,nNeurSnd(n),1);
   th_idx2=th_idx2(:);
-  p_th{n}=p_theta{n}(th_idx1,th_idx2);
-  p_th{n}=bsxfun(@rdivide,p_th{n},sum(p_th{n},2));
+  p_th_intra{n}=p_theta_intra{n}(th_idx1,th_idx2);
+  p_th_intra{n}=bsxfun(@rdivide,p_th_intra{n},sum(p_th_intra{n},2));
+  p_th_inter{n}=p_theta_inter{n}(th_idx1,th_idx2);
+  p_th_inter{n}=bsxfun(@rdivide,p_th_inter{n},sum(p_th_inter{n},2));
 end
 
 %% connection WITHIN hyper column
@@ -171,8 +186,8 @@ end
 
 for hypColIdx=1:numHypColmn
   conDum=cell(4,1);
-  for n=1:numel(p_th)
-    conDum{n}=strConIntra(n)*sampleCon(p_th{n},numConIntra(n));
+  for n=1:numel(p_th_intra)
+    conDum{n}=strConIntra(n)*sampleCon(p_th_intra{n},numConIntra(n));
   end
   
   conMatSep{hypColIdx,hypColIdx}=[conDum{1} conDum{3}; conDum{2} conDum{4}];
@@ -197,7 +212,7 @@ for hypColIdx1=1:numHypColmn
     if hypColIdx2~=hypColIdx1
       conDum=cell(4,1);
       for n=1:numel(numInterCon)
-        conDum{n}=strConInter(n)*sampleCon(p_th{n},numInterCon{n}(hypColIdx2));
+        conDum{n}=strConInter(n)*sampleCon(p_th_inter{n},numInterCon{n}(hypColIdx2));
       end
       conMatSep{hypColIdx1,hypColIdx2}=[conDum{1} conDum{3}; conDum{2} conDum{4}];
     end
@@ -217,8 +232,8 @@ th_idxE=th_idxE(:);
 th_idxI=repmat(1:numOrient,numI,1);
 th_idxI=th_idxI(:);
 
-X=repmat(1:gridSz,(numE+numI)*numOrient*gridSz,1);
-Y=repmat(1:gridSz,(numE+numI)*numOrient,gridSz);
+X=repmat(1:gridSz(1),(numE+numI)*numOrient*gridSz(2),1);
+Y=repmat(1:gridSz(2),(numE+numI)*numOrient,gridSz(1));
 
 EI=[ones(numE*numOrient,1); zeros(numI*numOrient,1)];
 
