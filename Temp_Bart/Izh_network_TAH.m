@@ -245,7 +245,7 @@ end
 
 I_orig=I;
 noise_orig=noise;
-interpIval=1e3;
+interpIval=1e3+1; % added 1 such that simulations that start at 0 and end in multiples of 1e3 don't need one complete extra interpolation step for the final timepoint 
 
 output.S_orig=S;
 output.I=I_orig;
@@ -294,7 +294,9 @@ for n=2:numIt
   I_E=G(1,EI)*S(:,EI).'.*(V_AMPA-V(1,:));
   I_I=G(1,~EI)*S(:,~EI).'.*(V_GABA-V(1,:));
   I_tot=I(interpCnt,:)+I_E+I_I;
-
+  
+  % noise on input current. Consider chaning noise source to conductance
+  % instead....
   I_tot=I_tot+noise(interpCnt,:).*randn(1,numNeur);
   
   % membrane potential
