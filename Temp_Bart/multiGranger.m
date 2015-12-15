@@ -38,20 +38,19 @@ if nargin>4 && exist(savFile,'file')
   warning([savFile, ' already exists. Not performing analysis'])
   return
 else
-  
+  indivFlag=false;
   [numChan, numTim, numTrl]=size(data);
-  if nargin ==3
-    [nChi,nTi,nTri]=size(data_independent);
-    if (nTi~=numTim) || (nTri ~= numTrl)
-      error('number of timepoints or number of trials does not match for independent sources')
+  if nargin >2
+    if ~isempty(data_independent)
+      [nChi,nTi,nTri]=size(data_independent);
+      if (nTi~=numTim) || (nTri ~= numTrl)
+        error('number of timepoints or number of trials does not match for independent sources')
+      end
+      if nChi == numChan
+        indivFlag=true;
+      end
     end
-    if nChi == numChan
-      indivFlag=true;
-    else
-      indivFlag=false;
-    end
-  end
-  
+  end 
   
   nT=numTim*numTrl;
   
@@ -67,7 +66,7 @@ else
         dumy(:)=dumy(:)-dumx(:)*b;
         data(n,:,:)=dumy;
       end
-    else
+    elseif ~isempty(data_independent)
       X=cat(2,X,permute(data_independent(:,:),[2 3 1]));
     end
   end
@@ -77,11 +76,6 @@ else
     X(n+1:end,:,n,:)=permute(data(:,1:end-n,:),[2 3 1]);
   end
   X=reshape(X,[nT],maxLag,[]);
-  
-  % add independent sources if present
-  if nargin>2
-    X=cat(2,X,permute(data_independent(:,:),[2 3 1]));
-  end
   
   Xdum=[ones(nT,1) X(:,:)]; %add constant
   
@@ -123,6 +117,9 @@ else
   p=1-fcdf(F,nT-1,nT-1);
   
   if nargin>4
+    if ~exist(fileparts(savFile),'file')
+      mkdir(filepart(savFile));
+    end
     %   save(savFile,'F', 'p', 'B_full', 'B_res', 'X')
     save(savFile,'F', 'p')
   end
