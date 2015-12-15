@@ -96,7 +96,7 @@ z=(max_mod-baserate2).*(prob);
 %% Create time series with ms times %%%%%%%%%
 
 maxNumMs=ceil(t_max/interval*1.5);
-ms=ones(maxNumMs,1)*interval+randn(maxNumMs,1)*msvar^.5;
+ms=[1; ones(maxNumMs,1)*interval+randn(maxNumMs,1)*msvar^.5];
 ms_t=ceil(cumsum(ms));
 ms_t=ms_t(ms_t<t_max);
 
@@ -104,7 +104,6 @@ out=zeros(t_max,1);
 % add ms with variance in their amplitude. 
 % (standard deviation divided by max_mod to get back to original units)
 out(ms_t)=1+randn(numel(ms_t),1)*(modvar^.5/max_mod);
-
 
 %%%%% Convolution %%%
 out=conv(out,z,'same');
