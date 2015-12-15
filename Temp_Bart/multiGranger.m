@@ -118,7 +118,7 @@ else
   
   if nargin>4
     if ~exist(fileparts(savFile),'file')
-      mkdir(filepart(savFile));
+      mkdir(fileparts(savFile));
     end
     %   save(savFile,'F', 'p', 'B_full', 'B_res', 'X')
     save(savFile,'F', 'p')
