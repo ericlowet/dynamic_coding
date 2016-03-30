@@ -110,11 +110,23 @@ else
   var_restr= squeeze(var(res));
   
   %% GC measure
-  %  by way of ratio of variances (F-statistic) with corresponding statistical test
-  F=bsxfun(@rdivide,var_restr,var_full);
-  
+%   %  by way of ratio of variances (F-statistic) with corresponding statistical test
+%   F=bsxfun(@rdivide,var_restr,var_full);
+%   
+%   % one-tailed test; since var_restr can never be smaller than var_full
+%   p=1-fcdf(F,nT-1,nT-1);
+
+  % by way of F-test for nested regression models (the right way, since this
+  % takes into account the differences in the number of coefficients (B)
+  % and should be less sensitive to non-Gaussian residuals)
+  df_res=nT-numel(b);
+  df_full=nT-numel(B_full);
+  numerator=bsxfun(@minus,var_restr,var_full)./(df_res-df_full);
+  denominator=var_full./(df_full);
+  F=bsxfun(@rdivide,numerator,denominator);
   % one-tailed test; since var_restr can never be smaller than var_full
-  p=1-fcdf(F,nT-1,nT-1);
+  p=1-fcdf(F,df_res-df_full,df_full);
+ 
   
   if nargin>4
     if ~exist(fileparts(savFile),'file')
