@@ -151,7 +151,8 @@ p_theta_intra=cell(4,1);
 p_theta_intra([1, 2])=deal({exp(-0.5*dist.^2/sig_theta(1))});
 p_theta_intra([3, 4])=deal({exp(-0.5*dist.^2/sig_theta(2))});
 p_theta_inter=cell(4,1);
-p_theta_inter([1, 2])=deal({exp(-0.5*dist.^2/sig_theta(3))});
+p_theta_inter([1])=deal({exp(-0.5*dist.^2/sig_theta(3))});
+p_theta_inter([2])=deal({exp(-0.5*dist.^2/(2*sig_theta(3)))});
 p_theta_inter([3, 4])=deal({exp(-0.5*dist.^2/sig_theta(4))});
 
 gridLoc=meshgrid([1:gridSz(1)]/(gridSz(1)+1),[1:gridSz(2)]/(gridSz(2)+1));
@@ -174,6 +175,10 @@ for n=1:numel(sig_dist)
   th_idx2=repmat(1:numOrient,nNeurSnd(n),1);
   th_idx2=th_idx2(:);
   p_th_intra{n}=p_theta_intra{n}(th_idx1,th_idx2);
+  if ismember(n,[1 4])
+    % do not allow autapses
+    p_th_intra{n}(logical(eye(size(p_th_intra{n}))))=0;
+  end
   p_th_intra{n}=bsxfun(@rdivide,p_th_intra{n},sum(p_th_intra{n},2));
   p_th_inter{n}=p_theta_inter{n}(th_idx1,th_idx2);
   p_th_inter{n}=bsxfun(@rdivide,p_th_inter{n},sum(p_th_inter{n},2));
@@ -247,16 +252,21 @@ end
 
 function [connMat]=sampleCon(pdfCon,nCon)
 
+if nCon<=0
+    connMat=sparse(zeros(size(pdfCon)));
+    return
+end
+
 [nReceive,nSend]=size(pdfCon);
 cpdf=cumsum(pdfCon,2);
 
-
-connMat=sparse(zeros(size(pdfCon)));
-dumsamp=rand(nCon, nReceive);
+dumSamp=rand(nCon, nReceive);
+connMat=zeros(size(pdfCon));
 for n=1:nReceive
-  [N,bin]=histc(dumsamp(:,n),[0 cpdf(n,:)]);
-  connMat(n,bin)=N(bin);
+    [N,bin]=histc(dumSamp(:,n),[0 cpdf(n,:)]);
+    connMat(n,bin)=N(bin);
 end
+connMat=sparse(connMat);
 end
 
 

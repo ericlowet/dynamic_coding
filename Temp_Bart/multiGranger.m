@@ -119,8 +119,8 @@ else
   % by way of F-test for nested regression models (the right way, since this
   % takes into account the differences in the number of coefficients (B)
   % and should be less sensitive to non-Gaussian residuals)
-  df_res=nT-numel(b);
-  df_full=nT-numel(B_full);
+  df_res=nT-(numChan-1)*maxLag-1;
+  df_full=nT-numChan*maxLag-1;
   numerator=bsxfun(@minus,var_restr,var_full)./(df_res-df_full);
   denominator=var_full./(df_full);
   F=bsxfun(@rdivide,numerator,denominator);

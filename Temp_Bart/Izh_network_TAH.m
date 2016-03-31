@@ -175,6 +175,12 @@ catch
   fullOutput=0;
 end
 
+try
+    LFPout=input.LFPout;
+catch
+    LFPout=0;
+end
+
 try 
   TAHpars=input.TAHpars;
 catch
@@ -248,7 +254,7 @@ noise_orig=noise;
 interpIval=1e3+1; % added 1 such that simulations that start at 0 and end in multiples of 1e3 don't need one complete extra interpolation step for the final timepoint 
 
 output.S_orig=S;
-output.I=I_orig;
+% output.I=I_orig;
 output.EI=EI;
 
 if fullOutput
@@ -260,6 +266,21 @@ if fullOutput
     X_list(:,:,1)=0;
   end
 end
+
+if LFPout
+  
+  try 
+    LFPkernel=input.LFPkernel;
+    if size(LFPkernel,1) ~= numNeur
+      error('LFPkernel does not match number of neurons (should be numNeur x numLFPChan)')
+    end
+  catch
+    LFPkernel=EI;
+  end
+  LFPkernel=bsxfun(@rdivide,LFPkernel,sum(LFPkernel));
+  LFP=nan(size(LFPkernel,2),numIt);
+end
+    
 
 
 
@@ -373,6 +394,10 @@ for n=2:numIt
     
   end
   
+  if LFPout
+      LFP(:,n)=LFPkernel.'*V(1,:).';
+  end
+  
   % save every couple of iterations (but skip the last one, if simulation is
   % almost done)
   if outpFlag && mod(n,saveInterval)==0 && (numIt-n)>saveInterval/2
@@ -388,6 +413,10 @@ for n=2:numIt
       end
     end    
     
+    if LFPout
+      output.LFP=LFP;
+    end
+    
     if fullOutput
       G_list(:,EI,n)=G(:,EI);
       G_list(:,~EI,n)=G(:,~EI);
@@ -398,9 +427,9 @@ for n=2:numIt
       output.V=V_list(:,:,1:n);
     end
     save(outpFname,'output','-v7.3')
-    try
-      save(outpFname,'spikes','-append','-v7.3')
-    end
+%     try
+%       save(outpFname,'spikes','-append','-v7.3')
+%     end
   end
   
   if verboseFlag
@@ -423,6 +452,10 @@ if STDPflag
   end
 end
 
+if LFPout
+      output.LFP=LFP;
+end
+
 if fullOutput
   G_list(:,EI,n)=G(:,EI);
   G_list(:,~EI,n)=G(:,~EI);
@@ -434,7 +467,7 @@ if fullOutput
 end
 if outpFlag
   save(outpFname,'output','-v7.3')
-  try
-    save(outpFname,'spikes','-append','-v7.3')
-  end
+%   try
+%     save(outpFname,'spikes','-append','-v7.3')
+%   end
 end
