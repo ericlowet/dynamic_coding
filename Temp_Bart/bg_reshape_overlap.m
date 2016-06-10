@@ -1,5 +1,5 @@
-function [Xres, winStart]=bg_reshape_overlap(X,dWin,winLen,dim)
-% Xres=bg_reshape_overlap(X,dWin,winLen,dim)
+function [Xres, winStart]=bg_reshape_overlap(X,winLen,dWin,dim)
+% Xres=bg_reshape_overlap(X,winLen,dWin,dim)
 %
 % Reshapes matrix along dimension "dim", but with new overlapping  windows
 % defined by dWin and winLen;

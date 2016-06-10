@@ -34,7 +34,7 @@ if nargin<3 || isempty(tapLen) || tapLen==0 || (tapLen*fs)>size(dat,1)
   L=size(dat,1);
 else
   L=ceil(tapLen*fs);
-  dat=bg_reshape_overlap(dat,ceil(.5*L),L,1);
+  dat=bg_reshape_overlap(dat,L,ceil(.5*L),1);
 end
 
 

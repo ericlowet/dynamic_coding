@@ -6,6 +6,7 @@
 #temporary files Bart
 /Temp_Bart/tq
 /Temp_Bart/output_figs
+/Temp_Bart/test_S*
 
 #Do not track figures
 Thumbs.db
