@@ -1,13 +1,13 @@
 %function sim_ms_gam_RF_batch29Juneb(iteration_sim)
 clear all
-addpath('/home/coherence/erilow/Network_modelling/')
-addpath('/home/coherence/erilow/Network_modelling/sim_ms_RF/')
+% addpath('/home/coherence/erilow/Network_modelling/')
+% addpath('/home/coherence/erilow/Network_modelling/sim_ms_RF/')
 iteration_sim=1;
 
 
 % vars1= [ 2 ];
 %col =colormap(jet(length(vars1)));
-f1=figure('Color','w')
+% f1=figure('Color','w')
 %f2=figure('Color','w')
 %f3=figure('Color','w')
 nn=0;
@@ -38,7 +38,9 @@ sim_ms_gam_input_arnold
 sim_ms_gam_init_AN
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
  sim_ms_gam_gen_Snoise
-n=0;
+
+ %%
+ n=0;
 for t=1:dt:simulation_time          % simulation
     n=n+1
     %    if mod(n,10)==0
@@ -95,6 +97,21 @@ spk_dens_E2=fastsmooth(sum(spiks(Ne1+1:Ne,:)),60,3,1);
 
 %% Signals
 [ signals , selm] = make_sig_fast_bg_edit(volt(1:Ne1,:),R_e,numNeurLin);
+
+
+%%
+time=1:dt:simulation_time;
+foi=[4:2:90];
+[sp,~,~,timtfr]=ft_specest_mtmconvol(signals(5:10:end,:),time(1:2:end)/1e3,'freqoi',foi,'timeoi',time(1:2:end)/1e3,'taper','hanning','timwin',0*foi+.2);
+
+dum=squeeze(mean(abs(sp).^2,2));
+dum=dum(floor(ms_dips(1)/2):end);
+dum2=bg_reshape_overlap(dum,420,420,2);
+
+figure(100)
+imagesc(1,foi,log(mean(dum2,3))); axis xy
+
+%%
 % %signalV2=zscore(fastsmooth(sum(spiks(Ne1+1:Ne1+Ne2,1:2:end)),3,3,1));
 %signals=volt(1:Ne1,1:2:end);
 timl=size(signals,2);
@@ -128,7 +145,7 @@ consum=bsxfun(@plus,S3(1:Ne1,1:Ne1),S3(1:Ne1,1:Ne1).')/2;
 
 %%
 %%%%% bart_edit
-tSel=1:10:size(ms_sigG,2);
+tSel=25:50:size(ms_sigG,2);
 
 phdiff=nan(Ne1,Ne1,numel(tSel));
 coh=phdiff;
@@ -136,12 +153,58 @@ for tBin=1:numel(tSel)
 phdiffDum=bsxfun(@times,ms_sigG(:,tSel(tBin),:),permute(conj(ms_sigG(:,tSel(tBin),:)),[2 1 3]));
 coh(:,:,tBin)=abs(mean(phdiffDum,3))./mean(abs(phdiffDum),3);
 phdiff(:,:,tBin)=mean(phdiffDum,3);
+disp([num2str(tBin) '/' num2str(numel(tSel)) '...'])
 end
 
-save('cohs.mat','coh','phdiff','-v7.3');
+% save('cohs.mat','coh','phdiff','-v7.3');
 
 %%
-histc(allIdiff)
+binRangesI=linspace(min(allIdiff(:)),max(allIdiff(:)),21);
+binRangesI=linspace(-3,3,21);
+[~,indI]=histc(allIdiff(:),binRangesI);
+binRangesC=linspace(min(consum(:)),max(consum(:)),21);
+binRangesC=linspace(0,.1,9);
+[~,indC]=histc(consum(:),binRangesC);
+
+aTongC=nan(numel(binRangesC),numel(binRangesI),size(coh,3));
+aTongP=aTongC;
+
+for tBin=1:numel(tSel)
+  dumcoh=coh(:,:,tBin);
+  dumcoh(logical(eye(size(dumcoh))))=nan;
+  dumpha=phdiff(:,:,tBin);
+  dumpha(logical(eye(size(dumcoh))))=nan;
+  for nC=1:numel(binRangesC)
+    selC=indC==nC;
+    for nI=1:numel(binRangesI)
+      selI=indI==nI;
+      
+      aTongC(nC,nI,tBin)=nanmean(dumcoh(selI& selC));
+      %       aTongP(nC,nI,tBin)=angle(nanmean(exp(1i*angle(dumpha(selI& selC)))));
+      aTongP(nC,nI,tBin)=angle(nanmean(dumpha(selI& selC)));
+    end
+  end
+  disp([num2str(tBin) '/' num2str(numel(tSel)) '...'])
+end
+
+%%
+figure(101)
+clf
+for n=1:numel(tSel)
+  subaxis(3,4,n)
+  imagesc(binRangesI,binRangesC,aTongC(:,:,n),[0 1])
+  axis xy  
+end
+
+figure(102)
+clf
+for n=1:numel(tSel)
+  subaxis(3,4,n)
+  imagesc(binRangesI,binRangesC,aTongP(:,:,n),[-pi pi]/8)
+  axis xy  
+end
+
+
 
 %%
 % %figure,plot( mean( mean(abs(ms_sigG(:,:,:)),1),3))
