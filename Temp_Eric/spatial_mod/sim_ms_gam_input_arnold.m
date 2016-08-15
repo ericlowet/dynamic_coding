@@ -44,7 +44,9 @@ cfg.sampling_frequency=2000;
 cfg.modulation_strength=1;
 cfg.positive_mod=0.8;cfg.negative_mod=0.4;
 [ ms_signal,ms_times]  = create_ms_sig(cfg);
+ms_signal=ms_signal(:).';
 % figure,plot(ms_signal)%hold on,plot(ms_times-320,1,'o')
-ms_dips=ms_times(2:end)-320;
-ms_dips=ms_dips+round((randn(1,length(ms_dips)).*0))
+ms_dips=ms_times(2:end)-52;
+ms_dips=ms_dips+round((randn(size(ms_dips)).*0));
 ms_sig = single([ repmat(ms_signal,Ne1,1);repmat(ms_signal,Ne2,1).*0; repmat(ms_signal,Ni1,1).*1]);
+ms_sig=ms_sig-min(ms_sig(:));

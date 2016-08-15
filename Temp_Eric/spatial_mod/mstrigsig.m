@@ -4,7 +4,7 @@ function  [ ms_sig] = mstrigsig(ms_dips,signals)
 
 ms_n=length(ms_dips);
 win_l=50;
-win_r=500;
+win_r=840;
 n1=0;
 for ind=1:ms_n
 if ((ms_dips(ind)-win_l)>0)   &  ((ms_dips(ind)+win_r)< m)

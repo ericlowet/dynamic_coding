@@ -1,19 +1,19 @@
 %function sim_ms_gam_RF_batch29Juneb(iteration_sim)
 clear all
-addpath('/home/coherence/erilow/Network_modelling/')
-addpath('/home/coherence/erilow/Network_modelling/sim_ms_RF/')
+% addpath('/home/coherence/erilow/Network_modelling/')
+% addpath('/home/coherence/erilow/Network_modelling/sim_ms_RF/')
 iteration_sim=1;
-addpath('/home/coherence/erilow/Network_modelling/dynamic_coding/Temp_Eric/spatial_mod/')
+
 
 % vars1= [ 2 ];
 %col =colormap(jet(length(vars1)));
-f1=figure('Color','w')
+% f1=figure('Color','w')
 %f2=figure('Color','w')
 %f3=figure('Color','w')
 nn=0;
 %for VARI1=[vars1]
     nn=nn+1;
-simulation_time=3020 ; %in ms
+simulation_time=10020 ; %in ms
 stim_size=0.5;stim_size2=2;
 %% Overall input strenth
 E_inp1=7;  E_inp2=1;I_inp1=E_inp1*2/3+1;I_inp2=2;
@@ -38,7 +38,9 @@ sim_ms_gam_input_arnold
 sim_ms_gam_init_AN
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
  sim_ms_gam_gen_Snoise
-n=0;
+
+ %%
+ n=0;
 for t=1:dt:simulation_time          % simulation
     n=n+1
     %    if mod(n,10)==0
@@ -88,13 +90,28 @@ rates.E1(1)=mean(All_rate(1:Ne1));rates.E1(2)=std(All_rate(1:Ne1));
 rates.E2(1)=mean(All_rate(Ne1+1:Ne));rates.E2(2)=std(All_rate(Ne1+1:Ne));
 rates.I1(1)=mean(All_rate(Ne+1:Ne+Ni1));rates.I1(2)=std(All_rate(Ne+1:Ne+Ni1));
 rates.I2(1)=mean(All_rate(Ne+Ni1+1:Ntot));rates.I2(2)=std(All_rate(Ne+Ni1+1:Ntot));
-%spk_dens_E=fastsmooth(sum(spiks(1:Ne1,:)),60,3,1);
+spk_dens_E=fastsmooth(sum(spiks(1:Ne1,:)),60,3,1);
 
 
-%spk_dens_E2=fastsmooth(sum(spiks(Ne1+1:Ne,:)),60,3,1);
+spk_dens_E2=fastsmooth(sum(spiks(Ne1+1:Ne,:)),60,3,1);
 
 %% Signals
 [ signals , selm] = make_sig_fast_bg_edit(volt(1:Ne1,:),R_e,numNeurLin);
+
+
+%%
+time=1:dt:simulation_time;
+foi=[4:2:90];
+[sp,~,~,timtfr]=ft_specest_mtmconvol(signals(5:10:end,:),time(1:2:end)/1e3,'freqoi',foi,'timeoi',time(1:2:end)/1e3,'taper','hanning','timwin',0*foi+.2);
+
+dum=squeeze(mean(abs(sp).^2,2));
+dum=dum(floor(ms_dips(1)/2):end);
+dum2=bg_reshape_overlap(dum,420,420,2);
+
+figure(100)
+imagesc(1,foi,log(mean(dum2,3))); axis xy
+
+%%
 % %signalV2=zscore(fastsmooth(sum(spiks(Ne1+1:Ne1+Ne2,1:2:end)),3,3,1));
 %signals=volt(1:Ne1,1:2:end);
 timl=size(signals,2);
@@ -128,7 +145,7 @@ consum=bsxfun(@plus,S3(1:Ne1,1:Ne1),S3(1:Ne1,1:Ne1).')/2;
 
 %%
 %%%%% bart_edit
-tSel=1:10:size(ms_sigG,2);
+tSel=25:50:size(ms_sigG,2);
 
 phdiff=nan(Ne1,Ne1,numel(tSel));
 coh=phdiff;
@@ -136,12 +153,58 @@ for tBin=1:numel(tSel)
 phdiffDum=bsxfun(@times,ms_sigG(:,tSel(tBin),:),permute(conj(ms_sigG(:,tSel(tBin),:)),[2 1 3]));
 coh(:,:,tBin)=abs(mean(phdiffDum,3))./mean(abs(phdiffDum),3);
 phdiff(:,:,tBin)=mean(phdiffDum,3);
+disp([num2str(tBin) '/' num2str(numel(tSel)) '...'])
 end
 
-save('cohs.mat','coh','phdiff','-v7.3');
+% save('cohs.mat','coh','phdiff','-v7.3');
 
 %%
-histc(allIdiff)
+binRangesI=linspace(min(allIdiff(:)),max(allIdiff(:)),21);
+binRangesI=linspace(-3,3,21);
+[~,indI]=histc(allIdiff(:),binRangesI);
+binRangesC=linspace(min(consum(:)),max(consum(:)),21);
+binRangesC=linspace(0,.1,9);
+[~,indC]=histc(consum(:),binRangesC);
+
+aTongC=nan(numel(binRangesC),numel(binRangesI),size(coh,3));
+aTongP=aTongC;
+
+for tBin=1:numel(tSel)
+  dumcoh=coh(:,:,tBin);
+  dumcoh(logical(eye(size(dumcoh))))=nan;
+  dumpha=phdiff(:,:,tBin);
+  dumpha(logical(eye(size(dumcoh))))=nan;
+  for nC=1:numel(binRangesC)
+    selC=indC==nC;
+    for nI=1:numel(binRangesI)
+      selI=indI==nI;
+      
+      aTongC(nC,nI,tBin)=nanmean(dumcoh(selI& selC));
+      %       aTongP(nC,nI,tBin)=angle(nanmean(exp(1i*angle(dumpha(selI& selC)))));
+      aTongP(nC,nI,tBin)=angle(nanmean(dumpha(selI& selC)));
+    end
+  end
+  disp([num2str(tBin) '/' num2str(numel(tSel)) '...'])
+end
+
+%%
+figure(101)
+clf
+for n=1:numel(tSel)
+  subaxis(3,4,n)
+  imagesc(binRangesI,binRangesC,aTongC(:,:,n),[0 1])
+  axis xy  
+end
+
+figure(102)
+clf
+for n=1:numel(tSel)
+  subaxis(3,4,n)
+  imagesc(binRangesI,binRangesC,aTongP(:,:,n),[-pi pi]/8)
+  axis xy  
+end
+
+
 
 %%
 % %figure,plot( mean( mean(abs(ms_sigG(:,:,:)),1),3))
@@ -226,26 +289,26 @@ xlim([ -0.08 0.46])
 
 if 0
     clear data
-    el=780;el2=431;
+    el=780;el2=80;
     tt=length(ms_sig(el,:,1));
     for tr=1:size(ms_sig,3);
-        data.trial{tr}(1,:) =zscore(ms_sig(el,:,tr))+randn(1,tt).*0;data.trial{tr}(2,:) =zscore(ms_sig(el2,:,tr))+randn(1,tt).*0;
+        data.trial{tr}(1,:) =zscore(ms_sig(el,:,tr))+randn(1,tt).*1;data.trial{tr}(2,:) =zscore(ms_sig(el2,:,tr))+randn(1,tt).*1;
         data.time{tr} =(1:length(ms_sig(el,:,tr)))./1000;
         data.label(1)={'Channel1'};data.label(2)={'Channel2'};
     end
     cfg = [];
     cfg.method ='wavelet';%'mtmconvol' for STFT;
     cfg.output ='fourier';cfg.keeptrials ='yes'
-    cfg.channel= 'all';cfg.foi= 12:1:65;
+    cfg.channel= 'all';cfg.foi= 8:1:65;
     cfg.toi= data.time{1}(1:1:end);
-    cfg.width =7; % important parameter
+    cfg.width =6; % important parameter
     gh=pwd; cd('/home/common/matlab/fieldtrip/')
     waveTFR= ft_freqanalysis(cfg, data);
     cd(gh)
     k=figure('COlor','w','Position', [300 300 240 180])
     h=subplot(1,1,1,'Fontsize',17)
-    imagesc(  waveTFR.time-0.45,  waveTFR.freq,squeeze(mean(mean(abs(waveTFR.fourierspctrm(:,1:2,:,:)),2)))    )
-    axis xy;xlim([ -0.08 0.4])
+    imagesc(  waveTFR.time-0.45,  waveTFR.freq,squeeze(mean(abs(waveTFR.fourierspctrm(:,1,:,:))))    )
+    axis xyxlim([ -0.08 0.4])
     set(h,'FontName','Arial','FontSize',12,'FontWeight','bold');
    
     pd= squeeze(circ_dist(angle(waveTFR.fourierspctrm(:,1,:,:)), angle(waveTFR.fourierspctrm(:,2,:,:)))  );
@@ -253,7 +316,7 @@ if 0
     figure('COlor','w','Position', [300 300 240 180])
     h=subplot(1,1,1,'Fontsize',17)
     imagesc(waveTFR.time-0.45,  waveTFR.freq,PLVTFR)
-    axis xy ;xlim([ -0.08 0.4])
+    axis xy xlim([ -0.08 0.4])
     set(h,'FontName','Arial','FontSize',12,'FontWeight','bold');
     colormap('hot');set(gca,'Clim',[ 0 1])
 end
