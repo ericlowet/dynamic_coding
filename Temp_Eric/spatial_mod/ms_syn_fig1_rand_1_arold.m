@@ -3,7 +3,7 @@ clear all
 addpath('/home/coherence/erilow/Network_modelling/')
 addpath('/home/coherence/erilow/Network_modelling/sim_ms_RF/')
 iteration_sim=1;
-
+addpath('/home/coherence/erilow/Network_modelling/dynamic_coding/Temp_Eric/spatial_mod/')
 
 % vars1= [ 2 ];
 %col =colormap(jet(length(vars1)));
@@ -13,7 +13,7 @@ f1=figure('Color','w')
 nn=0;
 %for VARI1=[vars1]
     nn=nn+1;
-simulation_time=10020 ; %in ms
+simulation_time=3020 ; %in ms
 stim_size=0.5;stim_size2=2;
 %% Overall input strenth
 E_inp1=7;  E_inp2=1;I_inp1=E_inp1*2/3+1;I_inp2=2;
@@ -88,10 +88,10 @@ rates.E1(1)=mean(All_rate(1:Ne1));rates.E1(2)=std(All_rate(1:Ne1));
 rates.E2(1)=mean(All_rate(Ne1+1:Ne));rates.E2(2)=std(All_rate(Ne1+1:Ne));
 rates.I1(1)=mean(All_rate(Ne+1:Ne+Ni1));rates.I1(2)=std(All_rate(Ne+1:Ne+Ni1));
 rates.I2(1)=mean(All_rate(Ne+Ni1+1:Ntot));rates.I2(2)=std(All_rate(Ne+Ni1+1:Ntot));
-spk_dens_E=fastsmooth(sum(spiks(1:Ne1,:)),60,3,1);
+%spk_dens_E=fastsmooth(sum(spiks(1:Ne1,:)),60,3,1);
 
 
-spk_dens_E2=fastsmooth(sum(spiks(Ne1+1:Ne,:)),60,3,1);
+%spk_dens_E2=fastsmooth(sum(spiks(Ne1+1:Ne,:)),60,3,1);
 
 %% Signals
 [ signals , selm] = make_sig_fast(volt(1:Ne1,:),R_e,numNeurLin);
