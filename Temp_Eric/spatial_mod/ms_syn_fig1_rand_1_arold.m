@@ -213,26 +213,26 @@ xlim([ -0.08 0.46])
 
 if 0
     clear data
-    el=780;el2=80;
+    el=780;el2=431;
     tt=length(ms_sig(el,:,1));
     for tr=1:size(ms_sig,3);
-        data.trial{tr}(1,:) =zscore(ms_sig(el,:,tr))+randn(1,tt).*1;data.trial{tr}(2,:) =zscore(ms_sig(el2,:,tr))+randn(1,tt).*1;
+        data.trial{tr}(1,:) =zscore(ms_sig(el,:,tr))+randn(1,tt).*0;data.trial{tr}(2,:) =zscore(ms_sig(el2,:,tr))+randn(1,tt).*0;
         data.time{tr} =(1:length(ms_sig(el,:,tr)))./1000;
         data.label(1)={'Channel1'};data.label(2)={'Channel2'};
     end
     cfg = [];
     cfg.method ='wavelet';%'mtmconvol' for STFT;
     cfg.output ='fourier';cfg.keeptrials ='yes'
-    cfg.channel= 'all';cfg.foi= 8:1:65;
+    cfg.channel= 'all';cfg.foi= 12:1:65;
     cfg.toi= data.time{1}(1:1:end);
-    cfg.width =6; % important parameter
+    cfg.width =7; % important parameter
     gh=pwd; cd('/home/common/matlab/fieldtrip/')
     waveTFR= ft_freqanalysis(cfg, data);
     cd(gh)
     k=figure('COlor','w','Position', [300 300 240 180])
     h=subplot(1,1,1,'Fontsize',17)
-    imagesc(  waveTFR.time-0.45,  waveTFR.freq,squeeze(mean(abs(waveTFR.fourierspctrm(:,1,:,:))))    )
-    axis xyxlim([ -0.08 0.4])
+    imagesc(  waveTFR.time-0.45,  waveTFR.freq,squeeze(mean(mean(abs(waveTFR.fourierspctrm(:,1:2,:,:)),2)))    )
+    axis xy;xlim([ -0.08 0.4])
     set(h,'FontName','Arial','FontSize',12,'FontWeight','bold');
    
     pd= squeeze(circ_dist(angle(waveTFR.fourierspctrm(:,1,:,:)), angle(waveTFR.fourierspctrm(:,2,:,:)))  );
@@ -240,7 +240,7 @@ if 0
     figure('COlor','w','Position', [300 300 240 180])
     h=subplot(1,1,1,'Fontsize',17)
     imagesc(waveTFR.time-0.45,  waveTFR.freq,PLVTFR)
-    axis xy xlim([ -0.08 0.4])
+    axis xy ;xlim([ -0.08 0.4])
     set(h,'FontName','Arial','FontSize',12,'FontWeight','bold');
     colormap('hot');set(gca,'Clim',[ 0 1])
 end
