@@ -213,14 +213,25 @@ else
   delayFlag=0;
 end
 
+if ~isfield(input,'tau_G')
+  input.tau_G=[2; 8];
+end
+tau_G=input.tau_G;
+
 %save input structure
+input=orderfields(input);
+dum=whos('input');
+if ~fullOutput && dum.bytes>500*1024^2 %if larger than 500 MB, interpolate I and noise before saving...
+  dSampFac=20;
+  warning(sprintf(['Noise and Input are very large and are therefore not saved in original resolution.\nThey are downsampled by a factor ' num2str(dSampFac) '.\n(Simulation uses full resolution)']))
+  output.warning(['Stored Input and Noise downsampled by a factor of ' num2str(dSampFac)])
+  input.I=input.I(1:20:end,:);
+  input.noise=input.noise(1:20:end,:);  
+end
 output.input=input;
-
-
 %%
 
 % conductances; AMPA and GABA -- NOTE this is FROM the neuron
-tau_G=[10; 5];
 G=zeros(1,numNeur);
 
 % STDP memory
@@ -251,7 +262,7 @@ end
 
 I_orig=I;
 noise_orig=noise;
-interpIval=1e3+1; % added 1 such that simulations that start at 0 and end in multiples of 1e3 don't need one complete extra interpolation step for the final timepoint 
+interpIval=1e3; % added 1 such that simulations that start at 0 and end in multiples of 1e3 don't need one complete extra interpolation step for the final timepoint 
 
 output.S_orig=S;
 % output.I=I_orig;
@@ -267,8 +278,7 @@ if fullOutput
   end
 end
 
-if LFPout
-  
+if LFPout  
   try 
     LFPkernel=input.LFPkernel;
     if size(LFPkernel,1) ~= numNeur
@@ -280,9 +290,6 @@ if LFPout
   LFPkernel=bsxfun(@rdivide,LFPkernel,sum(LFPkernel));
   LFP=nan(size(LFPkernel,2),numIt);
 end
-    
-
-
 
 % interpolate I and noise to desired resolution
 % Note: this is done in steps of interpIval to save memory space
