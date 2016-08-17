@@ -218,13 +218,14 @@ if ~isfield(input,'tau_G')
 end
 tau_G=input.tau_G;
 
+
 %save input structure
 input=orderfields(input);
 dum=whos('input');
 if ~fullOutput && dum.bytes>500*1024^2 %if larger than 500 MB, interpolate I and noise before saving...
   dSampFac=20;
   warning(sprintf(['Noise and Input are very large and are therefore not saved in original resolution.\nThey are downsampled by a factor ' num2str(dSampFac) '.\n(Simulation uses full resolution)']))
-  output.warning(['Stored Input and Noise downsampled by a factor of ' num2str(dSampFac)])
+  output.warning=['Stored Input and Noise downsampled by a factor of ' num2str(dSampFac)];
   input.I=input.I(1:20:end,:);
   input.noise=input.noise(1:20:end,:);  
 end
